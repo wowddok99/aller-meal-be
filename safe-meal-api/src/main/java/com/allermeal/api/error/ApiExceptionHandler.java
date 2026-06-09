@@ -1,5 +1,8 @@
 package com.allermeal.api.error;
 
+import com.allermeal.application.school.InvalidSchoolSearchRequestException;
+import com.allermeal.application.school.NeisApiException;
+import com.allermeal.application.school.NeisInvalidResponseException;
 import com.allermeal.domain.common.DomainException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
@@ -29,6 +32,24 @@ public final class ApiExceptionHandler {
 	ResponseEntity<ApiErrorResponse> handleDomainException(HttpServletRequest request) {
 		return response(HttpStatus.UNPROCESSABLE_ENTITY, "UNPROCESSABLE_ENTITY",
 			"요청한 작업을 처리할 수 없습니다.", request);
+	}
+
+	@ExceptionHandler(InvalidSchoolSearchRequestException.class)
+	ResponseEntity<ApiErrorResponse> handleInvalidSchoolSearchRequest(HttpServletRequest request) {
+		return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST",
+			"요청 값이 올바르지 않습니다.", request);
+	}
+
+	@ExceptionHandler(NeisApiException.class)
+	ResponseEntity<ApiErrorResponse> handleNeisApi(HttpServletRequest request) {
+		return response(HttpStatus.BAD_GATEWAY, "NEIS_API_ERROR",
+			"학교 정보 제공 기관 요청에 실패했습니다.", request);
+	}
+
+	@ExceptionHandler(NeisInvalidResponseException.class)
+	ResponseEntity<ApiErrorResponse> handleNeisInvalidResponse(HttpServletRequest request) {
+		return response(HttpStatus.BAD_GATEWAY, "NEIS_INVALID_RESPONSE",
+			"학교 정보 제공 기관 응답을 처리할 수 없습니다.", request);
 	}
 
 	@ExceptionHandler(NoResourceFoundException.class)

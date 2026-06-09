@@ -11,5 +11,6 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-amqp:4.0.6")
 	implementation("org.flywaydb:flyway-core:11.14.1")
 	implementation("org.flywaydb:flyway-database-postgresql:11.14.1")
+	implementation("tools.jackson.core:jackson-databind:3.1.2")
 	runtimeOnly("org.postgresql:postgresql:42.7.10")
 }
