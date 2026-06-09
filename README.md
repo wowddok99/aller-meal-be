@@ -20,12 +20,12 @@
 ## 로컬 인프라 실행
 
 ```powershell
-Copy-Item .env.example .env
 docker compose up -d
 docker compose ps
 ```
 
 PostgreSQL, Redis, RabbitMQ, MinIO, Mailpit이 로컬 인터페이스에 기동됩니다.
+기본 계정 정보를 변경하려면 `.env.example`을 `.env`로 복사한 뒤 값을 수정합니다.
 
 ## 빌드
 
