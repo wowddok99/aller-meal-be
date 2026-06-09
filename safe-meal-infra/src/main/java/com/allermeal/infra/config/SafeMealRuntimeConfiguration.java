@@ -11,10 +11,14 @@ import java.time.Clock;
 import java.time.Duration;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @Configuration
+@EntityScan(basePackages = "com.allermeal.infra.user")
+@EnableJpaRepositories(basePackages = "com.allermeal.infra.user")
 public class SafeMealRuntimeConfiguration {
 
 	@Bean
