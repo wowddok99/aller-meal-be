@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: safe-meal-api
+  datasource:
+    url: "${DATABASE_URL:jdbc:postgresql://localhost:5432/${POSTGRES_DB:safe_meal}}"
+    username: "${POSTGRES_USER:safe_meal}"
+    password: "${POSTGRES_PASSWORD:local-postgres-password}"
+  rabbitmq:
+    host: "${RABBITMQ_HOST:localhost}"
+    port: "${RABBITMQ_PORT:5672}"
+    username: "${RABBITMQ_DEFAULT_USER:safe_meal}"
+    password: "${RABBITMQ_DEFAULT_PASS:local-rabbitmq-password}"
+    publisher-confirm-type: correlated
+    publisher-returns: true
+
+safe-meal:
+  outbox:
+    publisher:
+      enabled: false
+      batch-size: 100
+      fixed-delay: 1000
+  consumer:
+    enabled: false
+  rabbitmq:
+    publisher-confirm-timeout: 5s
+    events:
+      exchange: safe-meal.events
+      queue: safe-meal.events.worker
+      routing-key: safe-meal.events
+    retry:
+      exchange: safe-meal.events.retry
+      queue: safe-meal.events.retry.worker
+      routing-key: safe-meal.events.retry
+      delay: 1000
+    dead-letter:
+      exchange: safe-meal.events.dlx
+      queue: safe-meal.events.dlq
+      routing-key: safe-meal.events.dead
+    max-retries: 3
