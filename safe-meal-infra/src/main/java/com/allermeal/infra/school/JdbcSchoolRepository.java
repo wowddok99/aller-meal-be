@@ -4,6 +4,7 @@ import com.allermeal.application.port.out.SchoolRepository;
 import com.allermeal.domain.school.School;
 import com.allermeal.domain.school.SchoolId;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -33,6 +34,24 @@ public class JdbcSchoolRepository implements SchoolRepository {
 	@Override
 	public List<School> saveAll(List<School> schools) {
 		return schools.stream().map(this::save).toList();
+	}
+
+	@Override
+	public Optional<School> findById(SchoolId schoolId) {
+		return jdbcClient.sql("""
+				SELECT school_id, neis_school_code, education_office_code, name, address, region
+				FROM schools
+				WHERE school_id = :schoolId
+				""")
+			.param("schoolId", schoolId.value())
+			.query((resultSet, rowNum) -> new School(
+				new SchoolId(resultSet.getObject("school_id", java.util.UUID.class)),
+				resultSet.getString("neis_school_code"),
+				resultSet.getString("education_office_code"),
+				resultSet.getString("name"),
+				resultSet.getString("address"),
+				resultSet.getString("region")))
+			.optional();
 	}
 
 	private School save(School school) {
