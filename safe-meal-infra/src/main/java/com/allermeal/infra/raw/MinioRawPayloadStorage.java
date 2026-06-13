@@ -90,7 +90,13 @@ public class MinioRawPayloadStorage implements RawPayloadStorage {
 
 	private void ensureBucket() throws Exception {
 		if (!minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucket).build())) {
-			minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
+			try {
+				minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
+			} catch (Exception exception) {
+				if (!minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucket).build())) {
+					throw exception;
+				}
+			}
 		}
 	}
 

@@ -13,5 +13,7 @@ dependencies {
 	implementation("org.flywaydb:flyway-database-postgresql:11.14.1")
 	implementation("tools.jackson.core:jackson-databind:3.1.2")
 	implementation("io.minio:minio:9.0.1")
+	implementation("io.github.resilience4j:resilience4j-circuitbreaker:2.3.0")
+	implementation("io.github.resilience4j:resilience4j-retry:2.3.0")
 	runtimeOnly("org.postgresql:postgresql:42.7.10")
 }
