@@ -1,5 +1,6 @@
 package com.allermeal.api.allergen;
 
+import com.allermeal.api.allergen.response.AllergenResponse;
 import com.allermeal.application.allergen.AllergenQueryService;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,6 +24,4 @@ public final class AllergenController {
 			.toList();
 	}
 
-	public record AllergenResponse(int code, String name) {
-	}
 }

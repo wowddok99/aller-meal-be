@@ -25,7 +25,7 @@ public final class MealCollectionEntrypoint {
 		this.clock = clock;
 	}
 
-	public MealCollectionService.CollectionResult collect(SchoolId schoolId, LocalDate mealDate, MealType mealType) {
+	public MealCollectionResult collect(SchoolId schoolId, LocalDate mealDate, MealType mealType) {
 		CollectionJob pending = CollectionJob.pending(
 			new CollectionJobId(UUID.randomUUID()), schoolId, mealDate, mealType, clock.instant());
 		CollectionJob active = collectionJobRepository.createOrGetActive(pending, clock.instant());

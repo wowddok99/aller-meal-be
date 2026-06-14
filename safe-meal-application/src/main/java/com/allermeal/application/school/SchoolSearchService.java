@@ -1,8 +1,8 @@
 package com.allermeal.application.school;
 
 import com.allermeal.application.port.out.NeisSchoolClient;
-import com.allermeal.application.port.out.NeisSchoolClient.SchoolSearchResult;
 import com.allermeal.application.port.out.SchoolRepository;
+import com.allermeal.application.port.out.result.SchoolSearchResult;
 
 public final class SchoolSearchService {
 

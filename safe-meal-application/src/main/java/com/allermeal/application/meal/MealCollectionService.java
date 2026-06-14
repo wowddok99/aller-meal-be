@@ -1,12 +1,14 @@
 package com.allermeal.application.meal;
 
 import com.allermeal.application.port.out.CollectionJobRepository;
-import com.allermeal.application.port.out.MealRepository;
 import com.allermeal.application.port.out.MealCollectionPersistence;
 import com.allermeal.application.port.out.NeisMealClient;
 import com.allermeal.application.port.out.NeisMealNormalizer;
 import com.allermeal.application.port.out.RawPayloadStorage;
 import com.allermeal.application.port.out.SchoolRepository;
+import com.allermeal.application.port.out.command.RawPayload;
+import com.allermeal.application.port.out.result.MealCollectionCompletionResult;
+import com.allermeal.application.port.out.result.RawMealResponse;
 import com.allermeal.domain.collection.CollectionJob;
 import com.allermeal.domain.collection.CollectionJobStatus;
 import com.allermeal.domain.meal.Meal;
@@ -50,7 +52,7 @@ public final class MealCollectionService {
 		this.leaseDuration = leaseDuration;
 	}
 
-	public CollectionResult collect(CollectionJob pendingJob) {
+	public MealCollectionResult collect(CollectionJob pendingJob) {
 		Instant collectionStartedAt = clock.instant();
 		CollectionJob runningJob = collectionJobRepository.save(
 			CollectionJobStatus.PENDING,
@@ -61,14 +63,14 @@ public final class MealCollectionService {
 			School school = schoolRepository.findById(runningJob.schoolId())
 				.orElseThrow(() -> new MealCollectionException("SCHOOL_NOT_FOUND", "수집 대상 학교를 찾을 수 없습니다."));
 			long fetchStartedNanos = System.nanoTime();
-			NeisMealClient.RawMealResponse response;
+			RawMealResponse response;
 			try {
 				response = neisMealClient.fetch(school, runningJob.mealDate(), runningJob.mealType());
 			} finally {
 				responseTimeMillis = elapsedMillis(fetchStartedNanos);
 			}
 			try {
-				metadata = rawPayloadStorage.store(new RawPayloadStorage.RawPayload(
+				metadata = rawPayloadStorage.store(new RawPayload(
 					"neis-meal", response.bytes(), "application/json", response.receivedAt(),
 					response.receivedAt().plus(RAW_RETENTION)));
 			} catch (RuntimeException internalStorageFailure) {
@@ -90,9 +92,9 @@ public final class MealCollectionService {
 				Duration.between(collectionStartedAt, completedAt).toMillis(),
 				metadata.id(),
 				completedAt);
-			MealCollectionPersistence.CompletionResult completion = persistence.complete(
+			MealCollectionCompletionResult completion = persistence.complete(
 				runningJob, succeeded, metadata, meals);
-			return new CollectionResult(completion.collectionJob(), metadata, completion.meals());
+			return new MealCollectionResult(completion.collectionJob(), metadata, completion.meals());
 		} catch (RuntimeException exception) {
 			MealCollectionException failure = toCollectionException(exception);
 			try {
@@ -125,14 +127,4 @@ public final class MealCollectionService {
 		return MealCollectionException.normalized("COLLECTION_FAILED", exception.getMessage(), exception);
 	}
 
-	public record CollectionResult(
-		CollectionJob collectionJob,
-		RawObjectMetadata rawObject,
-		List<MealRepository.MealSaveResult> meals
-	) {
-
-		public CollectionResult {
-			meals = List.copyOf(meals);
-		}
-	}
 }

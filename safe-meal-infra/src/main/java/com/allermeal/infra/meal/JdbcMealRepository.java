@@ -1,7 +1,7 @@
 package com.allermeal.infra.meal;
 
 import com.allermeal.application.port.out.MealRepository;
-import com.allermeal.application.port.out.MealRepository.MealSaveResult;
+import com.allermeal.application.port.out.result.MealSaveResult;
 import com.allermeal.domain.meal.Meal;
 import com.allermeal.domain.meal.MealId;
 import com.allermeal.domain.meal.MealItem;

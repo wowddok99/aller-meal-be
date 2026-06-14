@@ -2,6 +2,7 @@ package com.allermeal.infra.meal;
 
 import com.allermeal.application.meal.MealCollectionException;
 import com.allermeal.application.port.out.NeisMealClient;
+import com.allermeal.application.port.out.result.RawMealResponse;
 import com.allermeal.domain.meal.MealType;
 import com.allermeal.domain.school.School;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
