@@ -1,10 +1,12 @@
 package com.allermeal.application.port.out;
 
 import com.allermeal.application.port.out.result.MealSaveResult;
+import com.allermeal.application.port.out.result.MealQueryResult;
 import com.allermeal.domain.meal.Meal;
 import com.allermeal.domain.meal.MealType;
 import com.allermeal.domain.school.SchoolId;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 public interface MealRepository {
@@ -12,4 +14,6 @@ public interface MealRepository {
 	MealSaveResult save(Meal meal);
 
 	Optional<Meal> findByNaturalKey(SchoolId schoolId, LocalDate mealDate, MealType mealType);
+
+	List<MealQueryResult> findCollectedInRange(SchoolId schoolId, LocalDate startDate, LocalDate endDate);
 }

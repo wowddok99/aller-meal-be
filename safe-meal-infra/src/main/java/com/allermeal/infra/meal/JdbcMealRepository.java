@@ -2,6 +2,7 @@ package com.allermeal.infra.meal;
 
 import com.allermeal.application.port.out.MealRepository;
 import com.allermeal.application.port.out.result.MealSaveResult;
+import com.allermeal.application.port.out.result.MealQueryResult;
 import com.allermeal.domain.meal.Meal;
 import com.allermeal.domain.meal.MealId;
 import com.allermeal.domain.meal.MealItem;
@@ -115,6 +116,48 @@ public class JdbcMealRepository implements MealRepository {
 					findItems(mealId));
 			})
 			.optional();
+	}
+
+	@Override
+	public List<MealQueryResult> findCollectedInRange(SchoolId schoolId, LocalDate startDate, LocalDate endDate) {
+		return jdbcClient.sql("""
+				SELECT v.meal_date, v.meal_type, v.has_meal,
+				       m.meal_id, m.school_id, m.source_version, m.source_received_at,
+				       m.labeling_status, m.nutrition_info, m.origin_info
+				FROM meal_collection_versions v
+				LEFT JOIN meals m
+				  ON m.school_id = v.school_id
+				 AND m.meal_date = v.meal_date
+				 AND m.meal_type = v.meal_type
+				 AND v.has_meal = TRUE
+				WHERE v.school_id = :schoolId AND v.meal_date BETWEEN :startDate AND :endDate
+				ORDER BY v.meal_date, v.meal_type
+				""")
+			.param("schoolId", schoolId.value())
+			.param("startDate", startDate)
+			.param("endDate", endDate)
+			.query((resultSet, rowNum) -> {
+				LocalDate mealDate = resultSet.getObject("meal_date", LocalDate.class);
+				MealType mealType = MealType.valueOf(resultSet.getString("meal_type"));
+				UUID mealIdValue = resultSet.getObject("meal_id", UUID.class);
+				if (mealIdValue == null) {
+					return new MealQueryResult(mealDate, mealType, null);
+				}
+				MealId mealId = new MealId(mealIdValue);
+				Meal meal = new Meal(
+					mealId,
+					new SchoolId(resultSet.getObject("school_id", UUID.class)),
+					mealDate,
+					mealType,
+					resultSet.getString("source_version"),
+					resultSet.getObject("source_received_at", OffsetDateTime.class).toInstant(),
+					MealLabelingStatus.valueOf(resultSet.getString("labeling_status")),
+					resultSet.getString("nutrition_info"),
+					resultSet.getString("origin_info"),
+					findItems(mealId));
+				return new MealQueryResult(mealDate, mealType, meal);
+			})
+			.list();
 	}
 
 	private void insertItem(UUID mealId, MealItem item) {
