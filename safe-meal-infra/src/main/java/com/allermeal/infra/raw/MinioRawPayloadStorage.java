@@ -1,6 +1,7 @@
 package com.allermeal.infra.raw;
 
 import com.allermeal.application.port.out.RawPayloadStorage;
+import com.allermeal.application.port.out.command.RawPayload;
 import com.allermeal.application.raw.RawPayloadStorageException;
 import com.allermeal.domain.raw.RawObjectMetadata;
 import io.minio.BucketExistsArgs;

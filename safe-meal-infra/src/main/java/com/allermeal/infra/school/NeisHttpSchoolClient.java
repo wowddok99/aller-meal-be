@@ -1,6 +1,7 @@
 package com.allermeal.infra.school;
 
 import com.allermeal.application.port.out.NeisSchoolClient;
+import com.allermeal.application.port.out.result.SchoolSearchResult;
 import com.allermeal.application.school.NeisApiException;
 import com.allermeal.application.school.NeisInvalidResponseException;
 import com.allermeal.domain.school.School;

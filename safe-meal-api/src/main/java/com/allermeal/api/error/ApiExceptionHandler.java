@@ -1,5 +1,7 @@
 package com.allermeal.api.error;
 
+import com.allermeal.api.error.response.ApiError;
+import com.allermeal.api.error.response.ApiErrorResponse;
 import com.allermeal.application.school.InvalidSchoolSearchRequestException;
 import com.allermeal.application.school.NeisApiException;
 import com.allermeal.application.school.NeisInvalidResponseException;
@@ -116,7 +118,7 @@ public final class ApiExceptionHandler {
 
 	private ResponseEntity<ApiErrorResponse> response(HttpStatus status, String code, String message, String traceId) {
 		return ResponseEntity.status(status).body(new ApiErrorResponse(
-			new ApiErrorResponse.ApiError(code, message, Map.of(), traceId)));
+			new ApiError(code, message, Map.of(), traceId)));
 	}
 
 	private String traceId(HttpServletRequest request) {

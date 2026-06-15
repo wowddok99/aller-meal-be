@@ -3,6 +3,8 @@ package com.allermeal.infra.meal;
 import com.allermeal.application.port.out.CollectionJobRepository;
 import com.allermeal.application.port.out.MealCollectionPersistence;
 import com.allermeal.application.port.out.MealRepository;
+import com.allermeal.application.port.out.result.MealCollectionCompletionResult;
+import com.allermeal.application.port.out.result.MealSaveResult;
 import com.allermeal.domain.collection.CollectionJob;
 import com.allermeal.domain.collection.CollectionJobStatus;
 import com.allermeal.domain.meal.Meal;
@@ -33,7 +35,7 @@ public class TransactionalMealCollectionPersistence implements MealCollectionPer
 
 	@Override
 	@Transactional
-	public CompletionResult complete(
+	public MealCollectionCompletionResult complete(
 		CollectionJob runningJob,
 		CollectionJob succeededJob,
 		RawObjectMetadata rawObject,
@@ -43,11 +45,11 @@ public class TransactionalMealCollectionPersistence implements MealCollectionPer
 			throw new IllegalArgumentException("성공 작업과 원본 객체 ID가 일치하지 않습니다.");
 		}
 		boolean applied = updateCollectionVersion(runningJob, rawObject, !meals.isEmpty());
-		List<MealRepository.MealSaveResult> savedMeals;
+		List<MealSaveResult> savedMeals;
 		if (!applied) {
 			savedMeals = mealRepository.findByNaturalKey(
 					runningJob.schoolId(), runningJob.mealDate(), runningJob.mealType())
-				.map(meal -> List.of(new MealRepository.MealSaveResult(meal, false)))
+				.map(meal -> List.of(new MealSaveResult(meal, false)))
 				.orElseGet(List::of);
 		} else if (meals.isEmpty()) {
 			deleteMeal(runningJob, rawObject);
@@ -56,7 +58,7 @@ public class TransactionalMealCollectionPersistence implements MealCollectionPer
 			savedMeals = meals.stream().map(mealRepository::save).toList();
 		}
 		CollectionJob completed = collectionJobRepository.save(CollectionJobStatus.RUNNING, succeededJob);
-		return new CompletionResult(completed, savedMeals);
+		return new MealCollectionCompletionResult(completed, savedMeals);
 	}
 
 	private boolean updateCollectionVersion(CollectionJob job, RawObjectMetadata rawObject, boolean hasMeal) {
