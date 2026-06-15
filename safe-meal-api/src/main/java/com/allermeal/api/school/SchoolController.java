@@ -4,6 +4,9 @@ import com.allermeal.api.school.response.SchoolResponse;
 import com.allermeal.api.school.response.SchoolSearchResponse;
 import com.allermeal.application.port.out.result.SchoolSearchResult;
 import com.allermeal.application.school.SchoolSearchService;
+import com.allermeal.domain.school.SchoolId;
+import java.util.UUID;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -31,6 +34,11 @@ public final class SchoolController {
 			page,
 			pageSize,
 			result.totalCount());
+	}
+
+	@GetMapping("/{schoolId}")
+	public SchoolResponse findById(@PathVariable UUID schoolId) {
+		return SchoolResponse.from(searchService.findById(new SchoolId(schoolId)));
 	}
 
 }

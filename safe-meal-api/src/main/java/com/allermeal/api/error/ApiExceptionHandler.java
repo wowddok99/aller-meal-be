@@ -5,6 +5,7 @@ import com.allermeal.api.error.response.ApiErrorResponse;
 import com.allermeal.application.school.InvalidSchoolSearchRequestException;
 import com.allermeal.application.school.NeisApiException;
 import com.allermeal.application.school.NeisInvalidResponseException;
+import com.allermeal.application.school.SchoolNotFoundException;
 import com.allermeal.domain.common.DomainException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
@@ -58,6 +59,12 @@ public final class ApiExceptionHandler {
 	ResponseEntity<ApiErrorResponse> handleNotFound(HttpServletRequest request) {
 		return response(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND",
 			"요청한 리소스를 찾을 수 없습니다.", request);
+	}
+
+	@ExceptionHandler(SchoolNotFoundException.class)
+	ResponseEntity<ApiErrorResponse> handleSchoolNotFound(HttpServletRequest request) {
+		return response(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND",
+			"요청한 학교를 찾을 수 없습니다.", request);
 	}
 
 	@ExceptionHandler({

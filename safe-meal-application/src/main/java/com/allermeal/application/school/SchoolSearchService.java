@@ -3,6 +3,8 @@ package com.allermeal.application.school;
 import com.allermeal.application.port.out.NeisSchoolClient;
 import com.allermeal.application.port.out.SchoolRepository;
 import com.allermeal.application.port.out.result.SchoolSearchResult;
+import com.allermeal.domain.school.School;
+import com.allermeal.domain.school.SchoolId;
 
 public final class SchoolSearchService {
 
@@ -23,5 +25,9 @@ public final class SchoolSearchService {
 		}
 		SchoolSearchResult result = neisSchoolClient.search(keyword.trim(), page, pageSize);
 		return new SchoolSearchResult(schoolRepository.saveAll(result.schools()), result.totalCount());
+	}
+
+	public School findById(SchoolId schoolId) {
+		return schoolRepository.findById(schoolId).orElseThrow(SchoolNotFoundException::new);
 	}
 }
