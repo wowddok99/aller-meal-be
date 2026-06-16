@@ -3,6 +3,7 @@ package com.allermeal.application.meal;
 import com.allermeal.application.port.out.CollectionJobRepository;
 import com.allermeal.application.port.out.MealCollectionDispatcher;
 import com.allermeal.application.port.out.MealRepository;
+import com.allermeal.application.port.out.PublicMealQueryCache;
 import com.allermeal.application.port.out.SchoolRepository;
 import com.allermeal.application.port.out.result.MealQueryResult;
 import com.allermeal.application.school.SchoolNotFoundException;
@@ -32,6 +33,7 @@ public final class PublicMealQueryService {
 	private final MealRepository mealRepository;
 	private final CollectionJobRepository collectionJobRepository;
 	private final MealCollectionDispatcher collectionDispatcher;
+	private final PublicMealQueryCache queryCache;
 	private final Clock clock;
 
 	public PublicMealQueryService(
@@ -39,12 +41,14 @@ public final class PublicMealQueryService {
 		MealRepository mealRepository,
 		CollectionJobRepository collectionJobRepository,
 		MealCollectionDispatcher collectionDispatcher,
+		PublicMealQueryCache queryCache,
 		Clock clock
 	) {
 		this.schoolRepository = schoolRepository;
 		this.mealRepository = mealRepository;
 		this.collectionJobRepository = collectionJobRepository;
 		this.collectionDispatcher = collectionDispatcher;
+		this.queryCache = queryCache;
 		this.clock = clock;
 	}
 
@@ -58,6 +62,10 @@ public final class PublicMealQueryService {
 	}
 
 	private PublicMealQueryResult findRange(SchoolId schoolId, LocalDate startDate, LocalDate endDate) {
+		PublicMealQueryResult cached = queryCache.find(schoolId, startDate, endDate).orElse(null);
+		if (cached != null) {
+			return cached;
+		}
 		schoolRepository.findById(schoolId).orElseThrow(SchoolNotFoundException::new);
 		List<MealQueryResult> collected = mealRepository.findCollectedInRange(schoolId, startDate, endDate);
 		Set<PublicMealTarget> collectedTargets = new HashSet<>(collected.stream()
@@ -79,19 +87,23 @@ public final class PublicMealQueryService {
 			.sorted(Comparator.comparing(Meal::mealDate).thenComparing(Meal::mealType))
 			.toList();
 		boolean ready = pendingTargets.isEmpty();
-		return new PublicMealQueryResult(
+		PublicMealQueryResult result = new PublicMealQueryResult(
 			schoolId, startDate, endDate,
 			ready ? PublicMealCollectionStatus.READY : PublicMealCollectionStatus.COLLECTING,
 			ready ? null : RETRY_AFTER_SECONDS,
 			meals,
 			pendingTargets);
+		if (ready) {
+			queryCache.put(result);
+		}
+		return result;
 	}
 
 	private void requestCollection(SchoolId schoolId, PublicMealTarget target) {
 		CollectionJob pending = CollectionJob.pending(
 			new CollectionJobId(UUID.randomUUID()), schoolId, target.mealDate(), target.mealType(), clock.instant());
 		CollectionJob active = collectionJobRepository.createOrGetActive(pending, clock.instant());
-		if (active.status() == CollectionJobStatus.PENDING) {
+		if (active.status() == CollectionJobStatus.PENDING && queryCache.tryAcquireDispatch(schoolId, target)) {
 			collectionDispatcher.dispatch(active);
 		}
 	}
