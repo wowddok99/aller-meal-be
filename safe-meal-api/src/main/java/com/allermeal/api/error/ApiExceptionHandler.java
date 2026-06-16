@@ -2,6 +2,10 @@ package com.allermeal.api.error;
 
 import com.allermeal.api.error.response.ApiError;
 import com.allermeal.api.error.response.ApiErrorResponse;
+import com.allermeal.application.auth.DuplicateEmailException;
+import com.allermeal.application.auth.EmailAlreadyVerifiedException;
+import com.allermeal.application.auth.InvalidSignupRequestException;
+import com.allermeal.application.auth.UserEmailNotFoundException;
 import com.allermeal.application.school.InvalidSchoolSearchRequestException;
 import com.allermeal.application.school.NeisApiException;
 import com.allermeal.application.school.NeisInvalidResponseException;
@@ -41,6 +45,30 @@ public final class ApiExceptionHandler {
 	ResponseEntity<ApiErrorResponse> handleInvalidSchoolSearchRequest(HttpServletRequest request) {
 		return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST",
 			"요청 값이 올바르지 않습니다.", request);
+	}
+
+	@ExceptionHandler(InvalidSignupRequestException.class)
+	ResponseEntity<ApiErrorResponse> handleInvalidSignupRequest(HttpServletRequest request) {
+		return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST",
+			"요청 값이 올바르지 않습니다.", request);
+	}
+
+	@ExceptionHandler(DuplicateEmailException.class)
+	ResponseEntity<ApiErrorResponse> handleDuplicateEmail(HttpServletRequest request) {
+		return response(HttpStatus.CONFLICT, "EMAIL_ALREADY_EXISTS",
+			"이미 가입된 이메일입니다.", request);
+	}
+
+	@ExceptionHandler(EmailAlreadyVerifiedException.class)
+	ResponseEntity<ApiErrorResponse> handleEmailAlreadyVerified(HttpServletRequest request) {
+		return response(HttpStatus.CONFLICT, "EMAIL_ALREADY_VERIFIED",
+			"이미 인증된 이메일입니다.", request);
+	}
+
+	@ExceptionHandler(UserEmailNotFoundException.class)
+	ResponseEntity<ApiErrorResponse> handleUserEmailNotFound(HttpServletRequest request) {
+		return response(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND",
+			"요청한 이메일 계정을 찾을 수 없습니다.", request);
 	}
 
 	@ExceptionHandler(NeisApiException.class)

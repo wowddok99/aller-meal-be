@@ -8,6 +8,7 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-jdbc:4.0.6")
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa:4.0.6")
 	implementation("org.springframework.boot:spring-boot-starter-data-redis:4.0.6")
+	implementation("org.springframework.boot:spring-boot-starter-mail:4.0.6")
 	implementation("org.springframework.boot:spring-boot-flyway:4.0.6")
 	implementation("org.springframework.boot:spring-boot-starter-amqp:4.0.6")
 	implementation("org.flywaydb:flyway-core:11.14.1")
