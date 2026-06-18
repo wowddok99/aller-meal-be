@@ -3,8 +3,12 @@ package com.allermeal.api.error;
 import com.allermeal.api.error.response.ApiError;
 import com.allermeal.api.error.response.ApiErrorResponse;
 import com.allermeal.application.auth.DuplicateEmailException;
+import com.allermeal.application.auth.EmailNotVerifiedException;
 import com.allermeal.application.auth.EmailAlreadyVerifiedException;
+import com.allermeal.application.auth.InvalidEmailVerificationTokenException;
+import com.allermeal.application.auth.InvalidLoginCredentialsException;
 import com.allermeal.application.auth.InvalidSignupRequestException;
+import com.allermeal.application.auth.UnauthorizedAccessException;
 import com.allermeal.application.auth.UserEmailNotFoundException;
 import com.allermeal.application.school.InvalidSchoolSearchRequestException;
 import com.allermeal.application.school.NeisApiException;
@@ -69,6 +73,30 @@ public final class ApiExceptionHandler {
 	ResponseEntity<ApiErrorResponse> handleUserEmailNotFound(HttpServletRequest request) {
 		return response(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND",
 			"요청한 이메일 계정을 찾을 수 없습니다.", request);
+	}
+
+	@ExceptionHandler(InvalidEmailVerificationTokenException.class)
+	ResponseEntity<ApiErrorResponse> handleInvalidEmailVerificationToken(HttpServletRequest request) {
+		return response(HttpStatus.BAD_REQUEST, "INVALID_EMAIL_VERIFICATION_TOKEN",
+			"이메일 인증 링크가 올바르지 않거나 만료되었습니다.", request);
+	}
+
+	@ExceptionHandler(InvalidLoginCredentialsException.class)
+	ResponseEntity<ApiErrorResponse> handleInvalidLoginCredentials(HttpServletRequest request) {
+		return response(HttpStatus.UNAUTHORIZED, "INVALID_LOGIN_CREDENTIALS",
+			"이메일 또는 비밀번호가 올바르지 않습니다.", request);
+	}
+
+	@ExceptionHandler(EmailNotVerifiedException.class)
+	ResponseEntity<ApiErrorResponse> handleEmailNotVerified(HttpServletRequest request) {
+		return response(HttpStatus.FORBIDDEN, "EMAIL_NOT_VERIFIED",
+			"이메일 인증 후 이용해 주세요.", request);
+	}
+
+	@ExceptionHandler(UnauthorizedAccessException.class)
+	ResponseEntity<ApiErrorResponse> handleUnauthorizedAccess(HttpServletRequest request) {
+		return response(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED",
+			"로그인이 필요합니다.", request);
 	}
 
 	@ExceptionHandler(NeisApiException.class)

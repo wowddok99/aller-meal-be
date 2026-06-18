@@ -7,12 +7,15 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
+@Order(TraceIdFilter.ORDER)
 public final class TraceIdFilter extends OncePerRequestFilter {
 
+	public static final int ORDER = 0;
 	public static final String TRACE_ID_HEADER = "X-Trace-Id";
 	public static final String TRACE_ID_ATTRIBUTE = TraceIdFilter.class.getName() + ".traceId";
 
