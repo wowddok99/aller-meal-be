@@ -1,5 +1,6 @@
 package com.allermeal.infra.user;
 
+import com.allermeal.application.auth.DuplicateEmailException;
 import com.allermeal.application.port.out.UserRepository;
 import com.allermeal.domain.common.EntityTimestamps;
 import com.allermeal.domain.user.EmailSearchHash;
@@ -8,6 +9,7 @@ import com.allermeal.domain.user.PasswordHash;
 import com.allermeal.domain.user.User;
 import com.allermeal.domain.user.UserId;
 import java.util.Optional;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -21,7 +23,11 @@ public class JpaUserRepository implements UserRepository {
 
 	@Override
 	public User save(User user) {
-		return toDomain(repository.saveAndFlush(toEntity(user)));
+		try {
+			return toDomain(repository.saveAndFlush(toEntity(user)));
+		} catch (DataIntegrityViolationException exception) {
+			throw new DuplicateEmailException();
+		}
 	}
 
 	@Override
