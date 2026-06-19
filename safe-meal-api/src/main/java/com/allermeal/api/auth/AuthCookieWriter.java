@@ -42,6 +42,11 @@ public final class AuthCookieWriter {
 			refreshTokenTtl).toString());
 	}
 
+	public void clearAuthenticationCookies(HttpServletResponse response) {
+		response.addHeader(HttpHeaders.SET_COOKIE, cookie(ACCESS_TOKEN_COOKIE, "", Duration.ZERO).toString());
+		response.addHeader(HttpHeaders.SET_COOKIE, cookie(REFRESH_TOKEN_COOKIE, "", Duration.ZERO).toString());
+	}
+
 	private ResponseCookie cookie(String name, String value, Duration maxAge) {
 		return ResponseCookie.from(name, value)
 			.httpOnly(true)

@@ -72,9 +72,14 @@ public final class LoginService {
 		Instant accessExpiresAt = issuedAt.plus(accessTokenTtl);
 		Instant refreshExpiresAt = issuedAt.plus(refreshTokenTtl);
 		String accessToken = accessTokenIssuer.issue(user, accessTokenTtl);
+		String refreshTokenFamilyId = refreshTokenGenerator.generate();
 		String refreshToken = refreshTokenGenerator.generate();
 		refreshTokenStore.store(new RefreshTokenCommand(
-			user.id(), tokenHasher.hash(refreshToken), refreshExpiresAt, refreshTokenTtl));
+			user.id(),
+			tokenHasher.hash(refreshTokenFamilyId),
+			tokenHasher.hash(refreshToken),
+			refreshExpiresAt,
+			refreshTokenTtl));
 		return new AuthenticationResult(
 			user.id(),
 			user.emailVerificationStatus(),

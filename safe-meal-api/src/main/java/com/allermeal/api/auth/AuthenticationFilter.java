@@ -80,6 +80,8 @@ public final class AuthenticationFilter extends OncePerRequestFilter {
 			|| path.startsWith("/api/v1/public/")
 			|| path.equals("/api/v1/auth/signup")
 			|| path.equals("/api/v1/auth/login")
+			|| path.equals("/api/v1/auth/refresh")
+			|| path.equals("/api/v1/auth/logout")
 			|| path.equals("/api/v1/auth/email-verifications")
 			|| path.equals("/api/v1/auth/email-verifications/confirm");
 	}

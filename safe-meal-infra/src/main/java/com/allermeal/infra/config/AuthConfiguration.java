@@ -3,6 +3,7 @@ package com.allermeal.infra.config;
 import com.allermeal.application.auth.EmailVerificationConfirmer;
 import com.allermeal.application.auth.EmailVerificationRequester;
 import com.allermeal.application.auth.LoginService;
+import com.allermeal.application.auth.RefreshService;
 import com.allermeal.application.auth.SignupService;
 import com.allermeal.application.port.out.AccessTokenIssuer;
 import com.allermeal.application.port.out.EmailEncryptor;
@@ -142,6 +143,22 @@ public class AuthConfiguration {
 		return new LoginService(
 			userRepository, emailSearchHasher, passwordHasher, accessTokenIssuer, verificationTokenGenerator,
 			tokenHasher, refreshTokenStore, accessTokenTtl, refreshTokenTtl, clock);
+	}
+
+	@Bean
+	RefreshService refreshService(
+		UserRepository userRepository,
+		AccessTokenIssuer accessTokenIssuer,
+		VerificationTokenGenerator verificationTokenGenerator,
+		EmailVerificationTokenHasher tokenHasher,
+		RefreshTokenStore refreshTokenStore,
+		@Value("${safe-meal.auth.access-token-ttl:15m}") Duration accessTokenTtl,
+		@Value("${safe-meal.auth.refresh-token-ttl:14d}") Duration refreshTokenTtl,
+		Clock clock
+	) {
+		return new RefreshService(
+			userRepository, accessTokenIssuer, verificationTokenGenerator, tokenHasher, refreshTokenStore,
+			accessTokenTtl, refreshTokenTtl, clock);
 	}
 
 	@Bean
