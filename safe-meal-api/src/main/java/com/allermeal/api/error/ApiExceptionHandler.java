@@ -7,6 +7,7 @@ import com.allermeal.application.auth.EmailNotVerifiedException;
 import com.allermeal.application.auth.EmailAlreadyVerifiedException;
 import com.allermeal.application.auth.InvalidEmailVerificationTokenException;
 import com.allermeal.application.auth.InvalidLoginCredentialsException;
+import com.allermeal.application.auth.InvalidPasswordResetTokenException;
 import com.allermeal.application.auth.InvalidSignupRequestException;
 import com.allermeal.application.auth.UnauthorizedAccessException;
 import com.allermeal.application.auth.UserEmailNotFoundException;
@@ -79,6 +80,12 @@ public final class ApiExceptionHandler {
 	ResponseEntity<ApiErrorResponse> handleInvalidEmailVerificationToken(HttpServletRequest request) {
 		return response(HttpStatus.BAD_REQUEST, "INVALID_EMAIL_VERIFICATION_TOKEN",
 			"이메일 인증 링크가 올바르지 않거나 만료되었습니다.", request);
+	}
+
+	@ExceptionHandler(InvalidPasswordResetTokenException.class)
+	ResponseEntity<ApiErrorResponse> handleInvalidPasswordResetToken(HttpServletRequest request) {
+		return response(HttpStatus.BAD_REQUEST, "INVALID_PASSWORD_RESET_TOKEN",
+			"비밀번호 재설정 링크가 올바르지 않거나 만료되었습니다.", request);
 	}
 
 	@ExceptionHandler(InvalidLoginCredentialsException.class)
