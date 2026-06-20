@@ -83,7 +83,9 @@ public final class AuthenticationFilter extends OncePerRequestFilter {
 			|| path.equals("/api/v1/auth/refresh")
 			|| path.equals("/api/v1/auth/logout")
 			|| path.equals("/api/v1/auth/email-verifications")
-			|| path.equals("/api/v1/auth/email-verifications/confirm");
+			|| path.equals("/api/v1/auth/email-verifications/confirm")
+			|| path.equals("/api/v1/auth/password-resets")
+			|| path.equals("/api/v1/auth/password-resets/confirm");
 	}
 
 	private Optional<String> resolveToken(HttpServletRequest request) {

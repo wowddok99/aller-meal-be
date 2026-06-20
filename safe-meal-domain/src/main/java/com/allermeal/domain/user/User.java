@@ -94,6 +94,26 @@ public final class User {
 		return withState(status, EmailVerificationStatus.VERIFIED, changedAt);
 	}
 
+	public User changePassword(PasswordHash nextPasswordHash, Instant changedAt) {
+		Objects.requireNonNull(nextPasswordHash, "비밀번호 해시는 null일 수 없습니다.");
+		if (status != UserStatus.ACTIVE || emailVerificationStatus != EmailVerificationStatus.VERIFIED) {
+			throw new IllegalStateException("활성화되고 인증된 사용자만 비밀번호를 변경할 수 있습니다.");
+		}
+		if (changedAt == null || changedAt.isBefore(timestamps.updatedAt())) {
+			throw new IllegalArgumentException("변경 시각은 기존 updatedAt보다 이전일 수 없습니다.");
+		}
+		return new User(
+			id,
+			encryptedEmail,
+			emailSearchHash,
+			nextPasswordHash,
+			role,
+			status,
+			emailVerificationStatus,
+			new EntityTimestamps(timestamps.createdAt(), changedAt),
+			version);
+	}
+
 	public User requestWithdrawal(Instant changedAt) {
 		requireStatus(UserStatus.ACTIVE, "ACTIVE 사용자만 탈퇴를 요청할 수 있습니다.");
 		return withState(UserStatus.WITHDRAWAL_PENDING, emailVerificationStatus, changedAt);

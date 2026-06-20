@@ -78,6 +78,7 @@ public final class LoginService {
 			user.id(),
 			tokenHasher.hash(refreshTokenFamilyId),
 			tokenHasher.hash(refreshToken),
+			issuedAt,
 			refreshExpiresAt,
 			refreshTokenTtl));
 		return new AuthenticationResult(

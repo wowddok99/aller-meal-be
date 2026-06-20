@@ -3,6 +3,8 @@ package com.allermeal.infra.config;
 import com.allermeal.application.auth.EmailVerificationConfirmer;
 import com.allermeal.application.auth.EmailVerificationRequester;
 import com.allermeal.application.auth.LoginService;
+import com.allermeal.application.auth.PasswordResetConfirmer;
+import com.allermeal.application.auth.PasswordResetRequester;
 import com.allermeal.application.auth.RefreshService;
 import com.allermeal.application.auth.SignupService;
 import com.allermeal.application.port.out.AccessTokenIssuer;
@@ -12,6 +14,8 @@ import com.allermeal.application.port.out.EmailVerificationMailSender;
 import com.allermeal.application.port.out.EmailVerificationTokenHasher;
 import com.allermeal.application.port.out.EmailVerificationTokenStore;
 import com.allermeal.application.port.out.PasswordHasher;
+import com.allermeal.application.port.out.PasswordResetMailSender;
+import com.allermeal.application.port.out.PasswordResetTokenStore;
 import com.allermeal.application.port.out.RefreshTokenStore;
 import com.allermeal.application.port.out.UserRepository;
 import com.allermeal.application.port.out.VerificationTokenGenerator;
@@ -19,11 +23,13 @@ import com.allermeal.infra.auth.AesGcmEmailEncryptor;
 import com.allermeal.infra.auth.HmacSha256AccessTokenIssuer;
 import com.allermeal.infra.auth.Pbkdf2PasswordHasher;
 import com.allermeal.infra.auth.RedisEmailVerificationTokenStore;
+import com.allermeal.infra.auth.RedisPasswordResetTokenStore;
 import com.allermeal.infra.auth.RedisRefreshTokenStore;
 import com.allermeal.infra.auth.SecureRandomVerificationTokenGenerator;
 import com.allermeal.infra.auth.Sha256EmailSearchHasher;
 import com.allermeal.infra.auth.Sha256EmailVerificationTokenHasher;
 import com.allermeal.infra.auth.SmtpEmailVerificationMailSender;
+import com.allermeal.infra.auth.SmtpPasswordResetMailSender;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
@@ -81,6 +87,11 @@ public class AuthConfiguration {
 	}
 
 	@Bean
+	PasswordResetTokenStore passwordResetTokenStore(StringRedisTemplate redisTemplate) {
+		return new RedisPasswordResetTokenStore(redisTemplate);
+	}
+
+	@Bean
 	RefreshTokenStore refreshTokenStore(StringRedisTemplate redisTemplate) {
 		return new RedisRefreshTokenStore(redisTemplate);
 	}
@@ -101,6 +112,15 @@ public class AuthConfiguration {
 		@Value("${safe-meal.auth.email-verification-base-url}") String verificationBaseUrl
 	) {
 		return new SmtpEmailVerificationMailSender(mailSender, from, verificationBaseUrl);
+	}
+
+	@Bean
+	PasswordResetMailSender passwordResetMailSender(
+		JavaMailSender mailSender,
+		@Value("${safe-meal.auth.email-from:no-reply@allermeal.local}") String from,
+		@Value("${safe-meal.auth.password-reset-base-url}") String passwordResetBaseUrl
+	) {
+		return new SmtpPasswordResetMailSender(mailSender, from, passwordResetBaseUrl);
 	}
 
 	@Bean
@@ -159,6 +179,34 @@ public class AuthConfiguration {
 		return new RefreshService(
 			userRepository, accessTokenIssuer, verificationTokenGenerator, tokenHasher, refreshTokenStore,
 			accessTokenTtl, refreshTokenTtl, clock);
+	}
+
+	@Bean
+	PasswordResetRequester passwordResetRequester(
+		UserRepository userRepository,
+		EmailSearchHasher emailSearchHasher,
+		VerificationTokenGenerator tokenGenerator,
+		EmailVerificationTokenHasher tokenHasher,
+		PasswordResetTokenStore tokenStore,
+		PasswordResetMailSender mailSender,
+		@Value("${safe-meal.auth.password-reset-token-ttl:30m}") Duration tokenTtl
+	) {
+		return new PasswordResetRequester(
+			userRepository, emailSearchHasher, tokenGenerator, tokenHasher, tokenStore, mailSender, tokenTtl);
+	}
+
+	@Bean
+	PasswordResetConfirmer passwordResetConfirmer(
+		UserRepository userRepository,
+		PasswordHasher passwordHasher,
+		EmailVerificationTokenHasher tokenHasher,
+		PasswordResetTokenStore tokenStore,
+		RefreshTokenStore refreshTokenStore,
+		@Value("${safe-meal.auth.refresh-token-ttl:14d}") Duration refreshTokenTtl,
+		Clock clock
+	) {
+		return new PasswordResetConfirmer(
+			userRepository, passwordHasher, tokenHasher, tokenStore, refreshTokenStore, refreshTokenTtl, clock);
 	}
 
 	@Bean

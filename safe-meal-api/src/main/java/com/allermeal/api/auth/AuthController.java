@@ -2,6 +2,8 @@ package com.allermeal.api.auth;
 
 import com.allermeal.api.auth.request.EmailVerificationRequest;
 import com.allermeal.api.auth.request.LoginRequest;
+import com.allermeal.api.auth.request.PasswordResetConfirmRequest;
+import com.allermeal.api.auth.request.PasswordResetRequest;
 import com.allermeal.api.auth.request.SignupRequest;
 import com.allermeal.api.auth.response.EmailVerificationConfirmResponse;
 import com.allermeal.api.auth.response.EmailVerificationRequestResponse;
@@ -15,6 +17,10 @@ import com.allermeal.application.auth.EmailVerificationRequester;
 import com.allermeal.application.auth.InvalidSignupRequestException;
 import com.allermeal.application.auth.LoginCommand;
 import com.allermeal.application.auth.LoginService;
+import com.allermeal.application.auth.PasswordResetConfirmCommand;
+import com.allermeal.application.auth.PasswordResetConfirmer;
+import com.allermeal.application.auth.PasswordResetRequestCommand;
+import com.allermeal.application.auth.PasswordResetRequester;
 import com.allermeal.application.auth.RefreshService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpStatus;
@@ -37,6 +43,8 @@ public final class AuthController {
 	private final EmailVerificationConfirmer verificationConfirmer;
 	private final LoginService loginService;
 	private final RefreshService refreshService;
+	private final PasswordResetRequester passwordResetRequester;
+	private final PasswordResetConfirmer passwordResetConfirmer;
 	private final AuthCookieWriter cookieWriter;
 
 	public AuthController(
@@ -45,6 +53,8 @@ public final class AuthController {
 		EmailVerificationConfirmer verificationConfirmer,
 		LoginService loginService,
 		RefreshService refreshService,
+		PasswordResetRequester passwordResetRequester,
+		PasswordResetConfirmer passwordResetConfirmer,
 		AuthCookieWriter cookieWriter
 	) {
 		this.signupHandler = signupHandler;
@@ -52,6 +62,8 @@ public final class AuthController {
 		this.verificationConfirmer = verificationConfirmer;
 		this.loginService = loginService;
 		this.refreshService = refreshService;
+		this.passwordResetRequester = passwordResetRequester;
+		this.passwordResetConfirmer = passwordResetConfirmer;
 		this.cookieWriter = cookieWriter;
 	}
 
@@ -89,6 +101,24 @@ public final class AuthController {
 		AuthenticationResult result = loginService.login(new LoginCommand(request.email(), request.password()));
 		cookieWriter.writeAuthenticationCookies(result, response);
 		return ResponseEntity.ok(LoginResponse.from(result));
+	}
+
+	@PostMapping("/password-resets")
+	@ResponseStatus(HttpStatus.ACCEPTED)
+	public void requestPasswordReset(@RequestBody PasswordResetRequest request) {
+		if (request == null) {
+			throw new InvalidSignupRequestException("비밀번호 재설정 요청 본문은 필수입니다.");
+		}
+		passwordResetRequester.request(new PasswordResetRequestCommand(request.email()));
+	}
+
+	@PostMapping("/password-resets/confirm")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void confirmPasswordReset(@RequestBody PasswordResetConfirmRequest request) {
+		if (request == null) {
+			throw new InvalidSignupRequestException("비밀번호 재설정 확인 요청 본문은 필수입니다.");
+		}
+		passwordResetConfirmer.confirm(new PasswordResetConfirmCommand(request.token(), request.password()));
 	}
 
 	@PostMapping("/refresh")

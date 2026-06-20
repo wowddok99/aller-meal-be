@@ -28,6 +28,8 @@ safe-meal:
     email-encryption-key-version: "${AUTH_EMAIL_ENCRYPTION_KEY_VERSION:v1-local}"
     email-verification-token-ttl: "${EMAIL_VERIFICATION_TOKEN_TTL:30m}"
     email-verification-base-url: "${EMAIL_VERIFICATION_BASE_URL:http://localhost:8080/api/v1/auth/email-verifications/confirm?token=}"
+    password-reset-token-ttl: "${PASSWORD_RESET_TOKEN_TTL:30m}"
+    password-reset-base-url: "${PASSWORD_RESET_BASE_URL:http://localhost:8080/password-reset?token=}"
     email-from: "${AUTH_EMAIL_FROM:no-reply@allermeal.local}"
     password-hash-iterations: "${PASSWORD_HASH_ITERATIONS:210000}"
     access-token-signing-key: "${AUTH_ACCESS_TOKEN_SIGNING_KEY}"
