@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
-@Order(TraceIdFilter.ORDER + 1)
+@Order(TraceIdFilter.ORDER + 2)
 public final class AuthenticationFilter extends OncePerRequestFilter {
 
 	public static final String AUTHENTICATED_USER_ATTRIBUTE = AuthenticationFilter.class.getName() + ".user";

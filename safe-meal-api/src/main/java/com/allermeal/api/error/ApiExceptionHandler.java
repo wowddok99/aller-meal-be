@@ -7,6 +7,7 @@ import com.allermeal.application.auth.EmailNotVerifiedException;
 import com.allermeal.application.auth.EmailAlreadyVerifiedException;
 import com.allermeal.application.auth.InvalidEmailVerificationTokenException;
 import com.allermeal.application.auth.InvalidLoginCredentialsException;
+import com.allermeal.application.auth.LoginTemporarilyLockedException;
 import com.allermeal.application.auth.InvalidPasswordResetTokenException;
 import com.allermeal.application.auth.InvalidSignupRequestException;
 import com.allermeal.application.auth.UnauthorizedAccessException;
@@ -92,6 +93,12 @@ public final class ApiExceptionHandler {
 	ResponseEntity<ApiErrorResponse> handleInvalidLoginCredentials(HttpServletRequest request) {
 		return response(HttpStatus.UNAUTHORIZED, "INVALID_LOGIN_CREDENTIALS",
 			"이메일 또는 비밀번호가 올바르지 않습니다.", request);
+	}
+
+	@ExceptionHandler(LoginTemporarilyLockedException.class)
+	ResponseEntity<ApiErrorResponse> handleLoginTemporarilyLocked(HttpServletRequest request) {
+		return response(HttpStatus.TOO_MANY_REQUESTS, "LOGIN_TEMPORARILY_LOCKED",
+			"로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.", request);
 	}
 
 	@ExceptionHandler(EmailNotVerifiedException.class)
