@@ -6,6 +6,7 @@ import com.allermeal.api.auth.request.SignupRequest;
 import com.allermeal.api.auth.response.EmailVerificationConfirmResponse;
 import com.allermeal.api.auth.response.EmailVerificationRequestResponse;
 import com.allermeal.api.auth.response.LoginResponse;
+import com.allermeal.api.auth.response.RefreshResponse;
 import com.allermeal.api.auth.response.SignupResponse;
 import com.allermeal.application.auth.AuthenticationResult;
 import com.allermeal.application.auth.EmailVerificationConfirmer;
@@ -14,9 +15,11 @@ import com.allermeal.application.auth.EmailVerificationRequester;
 import com.allermeal.application.auth.InvalidSignupRequestException;
 import com.allermeal.application.auth.LoginCommand;
 import com.allermeal.application.auth.LoginService;
+import com.allermeal.application.auth.RefreshService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -33,6 +36,7 @@ public final class AuthController {
 	private final EmailVerificationRequester verificationRequester;
 	private final EmailVerificationConfirmer verificationConfirmer;
 	private final LoginService loginService;
+	private final RefreshService refreshService;
 	private final AuthCookieWriter cookieWriter;
 
 	public AuthController(
@@ -40,12 +44,14 @@ public final class AuthController {
 		EmailVerificationRequester verificationRequester,
 		EmailVerificationConfirmer verificationConfirmer,
 		LoginService loginService,
+		RefreshService refreshService,
 		AuthCookieWriter cookieWriter
 	) {
 		this.signupHandler = signupHandler;
 		this.verificationRequester = verificationRequester;
 		this.verificationConfirmer = verificationConfirmer;
 		this.loginService = loginService;
+		this.refreshService = refreshService;
 		this.cookieWriter = cookieWriter;
 	}
 
@@ -83,5 +89,25 @@ public final class AuthController {
 		AuthenticationResult result = loginService.login(new LoginCommand(request.email(), request.password()));
 		cookieWriter.writeAuthenticationCookies(result, response);
 		return ResponseEntity.ok(LoginResponse.from(result));
+	}
+
+	@PostMapping("/refresh")
+	public ResponseEntity<RefreshResponse> refresh(
+		@CookieValue(name = AuthCookieWriter.REFRESH_TOKEN_COOKIE, required = false) String refreshToken,
+		HttpServletResponse response
+	) {
+		AuthenticationResult result = refreshService.refresh(refreshToken);
+		cookieWriter.writeAuthenticationCookies(result, response);
+		return ResponseEntity.ok(RefreshResponse.from(result));
+	}
+
+	@PostMapping("/logout")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void logout(
+		@CookieValue(name = AuthCookieWriter.REFRESH_TOKEN_COOKIE, required = false) String refreshToken,
+		HttpServletResponse response
+	) {
+		refreshService.logout(refreshToken);
+		cookieWriter.clearAuthenticationCookies(response);
 	}
 }
