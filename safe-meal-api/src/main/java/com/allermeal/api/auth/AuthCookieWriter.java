@@ -3,6 +3,8 @@ package com.allermeal.api.auth;
 import com.allermeal.application.auth.AuthenticationResult;
 import jakarta.servlet.http.HttpServletResponse;
 import java.time.Duration;
+import java.security.SecureRandom;
+import java.util.Base64;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
@@ -13,6 +15,8 @@ public final class AuthCookieWriter {
 
 	public static final String ACCESS_TOKEN_COOKIE = "access_token";
 	public static final String REFRESH_TOKEN_COOKIE = "refresh_token";
+	public static final String CSRF_TOKEN_COOKIE = "csrf_token";
+	private final SecureRandom secureRandom = new SecureRandom();
 
 	private final boolean secure;
 	private final String sameSite;
@@ -40,11 +44,15 @@ public final class AuthCookieWriter {
 			REFRESH_TOKEN_COOKIE,
 			result.refreshToken(),
 			refreshTokenTtl).toString());
+		byte[] bytes = new byte[32];
+		secureRandom.nextBytes(bytes);
+		response.addHeader(HttpHeaders.SET_COOKIE, csrfCookie(Base64.getUrlEncoder().withoutPadding().encodeToString(bytes), refreshTokenTtl).toString());
 	}
 
 	public void clearAuthenticationCookies(HttpServletResponse response) {
 		response.addHeader(HttpHeaders.SET_COOKIE, cookie(ACCESS_TOKEN_COOKIE, "", Duration.ZERO).toString());
 		response.addHeader(HttpHeaders.SET_COOKIE, cookie(REFRESH_TOKEN_COOKIE, "", Duration.ZERO).toString());
+		response.addHeader(HttpHeaders.SET_COOKIE, csrfCookie("", Duration.ZERO).toString());
 	}
 
 	private ResponseCookie cookie(String name, String value, Duration maxAge) {
@@ -55,5 +63,9 @@ public final class AuthCookieWriter {
 			.path("/")
 			.maxAge(maxAge)
 			.build();
+	}
+
+	private ResponseCookie csrfCookie(String value, Duration maxAge) {
+		return ResponseCookie.from(CSRF_TOKEN_COOKIE, value).httpOnly(false).secure(secure).sameSite(sameSite).path("/").maxAge(maxAge).build();
 	}
 }

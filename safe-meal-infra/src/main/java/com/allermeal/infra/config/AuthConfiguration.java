@@ -14,6 +14,7 @@ import com.allermeal.application.port.out.EmailVerificationMailSender;
 import com.allermeal.application.port.out.EmailVerificationTokenHasher;
 import com.allermeal.application.port.out.EmailVerificationTokenStore;
 import com.allermeal.application.port.out.PasswordHasher;
+import com.allermeal.application.port.out.LoginAttemptStore;
 import com.allermeal.application.port.out.PasswordResetMailSender;
 import com.allermeal.application.port.out.PasswordResetTokenStore;
 import com.allermeal.application.port.out.RefreshTokenStore;
@@ -25,6 +26,7 @@ import com.allermeal.infra.auth.Pbkdf2PasswordHasher;
 import com.allermeal.infra.auth.RedisEmailVerificationTokenStore;
 import com.allermeal.infra.auth.RedisPasswordResetTokenStore;
 import com.allermeal.infra.auth.RedisRefreshTokenStore;
+import com.allermeal.infra.auth.RedisLoginAttemptStore;
 import com.allermeal.infra.auth.SecureRandomVerificationTokenGenerator;
 import com.allermeal.infra.auth.Sha256EmailSearchHasher;
 import com.allermeal.infra.auth.Sha256EmailVerificationTokenHasher;
@@ -97,6 +99,16 @@ public class AuthConfiguration {
 	}
 
 	@Bean
+	LoginAttemptStore loginAttemptStore(
+		StringRedisTemplate redisTemplate,
+		@Value("${safe-meal.auth.login-failure-window:15m}") Duration failureWindow,
+		@Value("${safe-meal.auth.login-lock-duration:15m}") Duration lockDuration,
+		@Value("${safe-meal.auth.login-max-failures:5}") int maxFailures
+	) {
+		return new RedisLoginAttemptStore(redisTemplate, failureWindow, lockDuration, maxFailures);
+	}
+
+	@Bean
 	AccessTokenIssuer accessTokenIssuer(
 		@Value("${safe-meal.auth.access-token-signing-key}") String encodedKey,
 		Clock clock,
@@ -156,13 +168,14 @@ public class AuthConfiguration {
 		VerificationTokenGenerator verificationTokenGenerator,
 		EmailVerificationTokenHasher tokenHasher,
 		RefreshTokenStore refreshTokenStore,
+		LoginAttemptStore loginAttemptStore,
 		@Value("${safe-meal.auth.access-token-ttl:15m}") Duration accessTokenTtl,
 		@Value("${safe-meal.auth.refresh-token-ttl:14d}") Duration refreshTokenTtl,
 		Clock clock
 	) {
 		return new LoginService(
 			userRepository, emailSearchHasher, passwordHasher, accessTokenIssuer, verificationTokenGenerator,
-			tokenHasher, refreshTokenStore, accessTokenTtl, refreshTokenTtl, clock);
+			tokenHasher, refreshTokenStore, loginAttemptStore, accessTokenTtl, refreshTokenTtl, clock);
 	}
 
 	@Bean
