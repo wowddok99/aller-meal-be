@@ -3,6 +3,8 @@ package com.allermeal.api.error;
 import com.allermeal.api.error.response.ApiError;
 import com.allermeal.api.error.response.ApiErrorResponse;
 import com.allermeal.application.auth.DuplicateEmailException;
+import com.allermeal.application.child.ChildProfileNotFoundException;
+import com.allermeal.application.child.InvalidChildProfileRequestException;
 import com.allermeal.application.auth.EmailNotVerifiedException;
 import com.allermeal.application.auth.EmailAlreadyVerifiedException;
 import com.allermeal.application.auth.InvalidEmailVerificationTokenException;
@@ -93,6 +95,16 @@ public final class ApiExceptionHandler {
 	ResponseEntity<ApiErrorResponse> handleInvalidLoginCredentials(HttpServletRequest request) {
 		return response(HttpStatus.UNAUTHORIZED, "INVALID_LOGIN_CREDENTIALS",
 			"이메일 또는 비밀번호가 올바르지 않습니다.", request);
+	}
+
+	@ExceptionHandler(InvalidChildProfileRequestException.class)
+	ResponseEntity<ApiErrorResponse> handleInvalidChildProfileRequest(HttpServletRequest request) {
+		return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "요청 값이 올바르지 않습니다.", request);
+	}
+
+	@ExceptionHandler(ChildProfileNotFoundException.class)
+	ResponseEntity<ApiErrorResponse> handleChildProfileNotFound(HttpServletRequest request) {
+		return response(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "요청한 자녀 정보를 찾을 수 없습니다.", request);
 	}
 
 	@ExceptionHandler(LoginTemporarilyLockedException.class)
