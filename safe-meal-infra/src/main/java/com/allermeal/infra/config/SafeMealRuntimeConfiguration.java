@@ -10,9 +10,12 @@ import com.allermeal.application.outbox.OutboxPublisher;
 import com.allermeal.application.port.out.ConsumedEventRepository;
 import com.allermeal.application.port.out.ChildProfileRepository;
 import com.allermeal.application.port.out.ChildNotificationPreferenceRepository;
+import com.allermeal.application.port.out.CollectionJobRepository;
 import com.allermeal.application.port.out.EventPublisher;
+import com.allermeal.application.port.out.MealCollectionDispatcher;
 import com.allermeal.application.port.out.OutboxEventRepository;
 import com.allermeal.application.port.out.SchoolRepository;
+import com.allermeal.application.port.out.SchoolCollectionSubscriptionRepository;
 import com.allermeal.infra.consumer.RabbitMqRetryRouter;
 import com.allermeal.infra.outbox.RabbitMqEventPublisher;
 import java.time.Clock;
@@ -38,9 +41,13 @@ public class SafeMealRuntimeConfiguration {
 	ChildProfileService childProfileService(
 		ChildProfileRepository childProfileRepository,
 		SchoolRepository schoolRepository,
+		SchoolCollectionSubscriptionRepository subscriptionRepository,
+		CollectionJobRepository collectionJobRepository,
+		MealCollectionDispatcher collectionDispatcher,
 		Clock clock
 	) {
-		return new ChildProfileService(childProfileRepository, schoolRepository, clock);
+		return new ChildProfileService(
+			childProfileRepository, schoolRepository, subscriptionRepository, collectionJobRepository, collectionDispatcher, clock);
 	}
 
 	@Bean
