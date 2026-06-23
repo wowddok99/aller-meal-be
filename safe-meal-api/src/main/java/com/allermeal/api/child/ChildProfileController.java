@@ -4,14 +4,19 @@ import com.allermeal.api.auth.AuthenticationFilter;
 import com.allermeal.api.child.request.CreateChildProfileRequest;
 import com.allermeal.api.child.request.ReplaceChildAllergensRequest;
 import com.allermeal.api.child.request.UpdateChildProfileRequest;
+import com.allermeal.api.child.request.UpdateChildNotificationPreferenceRequest;
 import com.allermeal.api.child.response.ChildAllergenResponse;
+import com.allermeal.api.child.response.ChildNotificationPreferenceResponse;
 import com.allermeal.api.child.response.ChildProfileResponse;
 import com.allermeal.application.child.ChildAllergenService;
+import com.allermeal.application.child.ChildNotificationPreferenceService;
 import com.allermeal.application.child.ChildProfileService;
 import com.allermeal.application.child.InvalidChildProfileRequestException;
+import com.allermeal.application.child.InvalidChildNotificationPreferenceRequestException;
 import com.allermeal.application.child.CreateChildProfileCommand;
 import com.allermeal.application.child.ReplaceChildAllergensCommand;
 import com.allermeal.application.child.UpdateChildProfileCommand;
+import com.allermeal.application.child.UpdateChildNotificationPreferenceCommand;
 import com.allermeal.domain.child.ChildProfileId;
 import com.allermeal.domain.school.SchoolId;
 import com.allermeal.domain.user.User;
@@ -37,10 +42,13 @@ public final class ChildProfileController {
 
 	private final ChildProfileService childProfileService;
 	private final ChildAllergenService childAllergenService;
+	private final ChildNotificationPreferenceService childNotificationPreferenceService;
 
-	public ChildProfileController(ChildProfileService childProfileService, ChildAllergenService childAllergenService) {
+	public ChildProfileController(ChildProfileService childProfileService, ChildAllergenService childAllergenService,
+		ChildNotificationPreferenceService childNotificationPreferenceService) {
 		this.childProfileService = childProfileService;
 		this.childAllergenService = childAllergenService;
+		this.childNotificationPreferenceService = childNotificationPreferenceService;
 	}
 
 	@PostMapping
@@ -71,6 +79,24 @@ public final class ChildProfileController {
 		if (request == null) throw new InvalidChildProfileRequestException();
 		return ChildAllergenResponse.from(childAllergenService.replace(currentUser(servletRequest).id(), new ChildProfileId(childId),
 			new ReplaceChildAllergensCommand(request.allergenCodes())));
+	}
+
+	@GetMapping("/{childId}/notification-preference")
+	public ChildNotificationPreferenceResponse findNotificationPreference(HttpServletRequest servletRequest,
+		@PathVariable UUID childId) {
+		return ChildNotificationPreferenceResponse.from(childNotificationPreferenceService.find(currentUser(servletRequest).id(),
+			new ChildProfileId(childId)));
+	}
+
+	@PutMapping("/{childId}/notification-preference")
+	public ChildNotificationPreferenceResponse updateNotificationPreference(HttpServletRequest servletRequest,
+		@PathVariable UUID childId, @RequestBody UpdateChildNotificationPreferenceRequest request) {
+		if (request == null || request.emailEnabled() == null || request.notificationTime() == null || request.timezone() == null) {
+			throw new InvalidChildNotificationPreferenceRequestException();
+		}
+		return ChildNotificationPreferenceResponse.from(childNotificationPreferenceService.update(currentUser(servletRequest).id(),
+			new ChildProfileId(childId), new UpdateChildNotificationPreferenceCommand(request.emailEnabled(),
+				request.notificationTime(), request.timezone())));
 	}
 
 	@DeleteMapping("/{childId}")
