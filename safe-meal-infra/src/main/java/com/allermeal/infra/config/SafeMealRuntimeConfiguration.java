@@ -3,11 +3,13 @@ package com.allermeal.infra.config;
 import com.allermeal.application.consumer.IdempotentEventConsumer;
 import com.allermeal.application.child.ChildProfileService;
 import com.allermeal.application.child.ChildAllergenService;
+import com.allermeal.application.child.ChildNotificationPreferenceService;
 import com.allermeal.application.port.out.AllergenRepository;
 import com.allermeal.application.port.out.ChildAllergenRepository;
 import com.allermeal.application.outbox.OutboxPublisher;
 import com.allermeal.application.port.out.ConsumedEventRepository;
 import com.allermeal.application.port.out.ChildProfileRepository;
+import com.allermeal.application.port.out.ChildNotificationPreferenceRepository;
 import com.allermeal.application.port.out.EventPublisher;
 import com.allermeal.application.port.out.OutboxEventRepository;
 import com.allermeal.application.port.out.SchoolRepository;
@@ -48,6 +50,15 @@ public class SafeMealRuntimeConfiguration {
 		AllergenRepository allergenRepository
 	) {
 		return new ChildAllergenService(childProfileRepository, childAllergenRepository, allergenRepository);
+	}
+
+	@Bean
+	ChildNotificationPreferenceService childNotificationPreferenceService(
+		ChildProfileRepository childProfileRepository,
+		ChildNotificationPreferenceRepository notificationPreferenceRepository,
+		Clock clock
+	) {
+		return new ChildNotificationPreferenceService(childProfileRepository, notificationPreferenceRepository, clock);
 	}
 
 	@Bean
