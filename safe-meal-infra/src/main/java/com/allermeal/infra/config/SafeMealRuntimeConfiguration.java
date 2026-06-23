@@ -2,6 +2,9 @@ package com.allermeal.infra.config;
 
 import com.allermeal.application.consumer.IdempotentEventConsumer;
 import com.allermeal.application.child.ChildProfileService;
+import com.allermeal.application.child.ChildAllergenService;
+import com.allermeal.application.port.out.AllergenRepository;
+import com.allermeal.application.port.out.ChildAllergenRepository;
 import com.allermeal.application.outbox.OutboxPublisher;
 import com.allermeal.application.port.out.ConsumedEventRepository;
 import com.allermeal.application.port.out.ChildProfileRepository;
@@ -36,6 +39,15 @@ public class SafeMealRuntimeConfiguration {
 		Clock clock
 	) {
 		return new ChildProfileService(childProfileRepository, schoolRepository, clock);
+	}
+
+	@Bean
+	ChildAllergenService childAllergenService(
+		ChildProfileRepository childProfileRepository,
+		ChildAllergenRepository childAllergenRepository,
+		AllergenRepository allergenRepository
+	) {
+		return new ChildAllergenService(childProfileRepository, childAllergenRepository, allergenRepository);
 	}
 
 	@Bean

@@ -5,6 +5,7 @@ import com.allermeal.api.error.response.ApiErrorResponse;
 import com.allermeal.application.auth.DuplicateEmailException;
 import com.allermeal.application.child.ChildProfileNotFoundException;
 import com.allermeal.application.child.InvalidChildProfileRequestException;
+import com.allermeal.application.child.InvalidChildAllergenRequestException;
 import com.allermeal.application.auth.EmailNotVerifiedException;
 import com.allermeal.application.auth.EmailAlreadyVerifiedException;
 import com.allermeal.application.auth.InvalidEmailVerificationTokenException;
@@ -99,6 +100,11 @@ public final class ApiExceptionHandler {
 
 	@ExceptionHandler(InvalidChildProfileRequestException.class)
 	ResponseEntity<ApiErrorResponse> handleInvalidChildProfileRequest(HttpServletRequest request) {
+		return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "요청 값이 올바르지 않습니다.", request);
+	}
+
+	@ExceptionHandler(InvalidChildAllergenRequestException.class)
+	ResponseEntity<ApiErrorResponse> handleInvalidChildAllergenRequest(HttpServletRequest request) {
 		return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "요청 값이 올바르지 않습니다.", request);
 	}
 
