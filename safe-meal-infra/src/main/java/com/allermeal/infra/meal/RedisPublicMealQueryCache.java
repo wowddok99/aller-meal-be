@@ -5,7 +5,9 @@ import com.allermeal.application.meal.PublicMealTarget;
 import com.allermeal.application.port.out.PublicMealQueryCache;
 import com.allermeal.domain.school.SchoolId;
 import java.time.Duration;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.temporal.TemporalAdjusters;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,6 +60,17 @@ public final class RedisPublicMealQueryCache implements PublicMealQueryCache {
 				cacheTtl);
 		} catch (RuntimeException exception) {
 			log.warn("공개 급식 Redis 캐시 저장에 실패했습니다. error={}", exception.toString());
+		}
+	}
+
+	@Override
+	public void evictDailyAndWeekly(SchoolId schoolId, LocalDate mealDate) {
+		try {
+			LocalDate weekStart = mealDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+			redisTemplate.delete(cacheKey(schoolId, mealDate, mealDate));
+			redisTemplate.delete(cacheKey(schoolId, weekStart, weekStart.plusDays(6)));
+		} catch (RuntimeException exception) {
+			log.warn("공개 급식 Redis 캐시 삭제에 실패했습니다. error={}", exception.toString());
 		}
 	}
 

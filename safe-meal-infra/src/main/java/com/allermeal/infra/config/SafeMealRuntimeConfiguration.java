@@ -4,6 +4,8 @@ import com.allermeal.application.consumer.IdempotentEventConsumer;
 import com.allermeal.application.child.ChildProfileService;
 import com.allermeal.application.child.ChildAllergenService;
 import com.allermeal.application.child.ChildNotificationPreferenceService;
+import com.allermeal.application.meal.MealAllergenLabelingService;
+import com.allermeal.application.meal.NeisAllergenLabelParser;
 import com.allermeal.application.port.out.AllergenRepository;
 import com.allermeal.application.port.out.ChildAllergenRepository;
 import com.allermeal.application.outbox.OutboxPublisher;
@@ -13,7 +15,9 @@ import com.allermeal.application.port.out.ChildNotificationPreferenceRepository;
 import com.allermeal.application.port.out.CollectionJobRepository;
 import com.allermeal.application.port.out.EventPublisher;
 import com.allermeal.application.port.out.MealCollectionDispatcher;
+import com.allermeal.application.port.out.MealRepository;
 import com.allermeal.application.port.out.OutboxEventRepository;
+import com.allermeal.application.port.out.PublicMealQueryCache;
 import com.allermeal.application.port.out.SchoolRepository;
 import com.allermeal.application.port.out.SchoolCollectionSubscriptionRepository;
 import com.allermeal.infra.consumer.RabbitMqRetryRouter;
@@ -26,6 +30,7 @@ import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import tools.jackson.databind.ObjectMapper;
 
 @Configuration
 @EntityScan(basePackages = "com.allermeal.infra.user")
@@ -35,6 +40,11 @@ public class SafeMealRuntimeConfiguration {
 	@Bean
 	Clock clock() {
 		return Clock.systemUTC();
+	}
+
+	@Bean
+	ObjectMapper objectMapper() {
+		return new ObjectMapper();
 	}
 
 	@Bean
@@ -66,6 +76,24 @@ public class SafeMealRuntimeConfiguration {
 		Clock clock
 	) {
 		return new ChildNotificationPreferenceService(childProfileRepository, notificationPreferenceRepository, clock);
+	}
+
+	@Bean
+	NeisAllergenLabelParser neisAllergenLabelParser() {
+		return new NeisAllergenLabelParser();
+	}
+
+	@Bean
+	MealAllergenLabelingService mealAllergenLabelingService(
+		MealRepository mealRepository,
+		AllergenRepository allergenRepository,
+		OutboxEventRepository outboxEventRepository,
+		PublicMealQueryCache publicMealQueryCache,
+		NeisAllergenLabelParser parser,
+		Clock clock
+	) {
+		return new MealAllergenLabelingService(
+			mealRepository, allergenRepository, outboxEventRepository, publicMealQueryCache, parser, clock);
 	}
 
 	@Bean

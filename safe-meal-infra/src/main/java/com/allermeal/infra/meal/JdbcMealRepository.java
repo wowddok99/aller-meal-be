@@ -15,6 +15,8 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -91,6 +93,32 @@ public class JdbcMealRepository implements MealRepository {
 	}
 
 	@Override
+	public Optional<Meal> findById(MealId mealId) {
+		return jdbcClient.sql("""
+				SELECT meal_id, school_id, meal_date, meal_type, source_version, source_received_at,
+				       labeling_status, nutrition_info, origin_info
+				FROM meals
+				WHERE meal_id = :mealId
+				""")
+			.param("mealId", mealId.value())
+			.query((resultSet, rowNum) -> {
+				MealId persistedMealId = new MealId(resultSet.getObject("meal_id", UUID.class));
+				return new Meal(
+					persistedMealId,
+					new SchoolId(resultSet.getObject("school_id", UUID.class)),
+					resultSet.getObject("meal_date", LocalDate.class),
+					MealType.valueOf(resultSet.getString("meal_type")),
+					resultSet.getString("source_version"),
+					resultSet.getObject("source_received_at", OffsetDateTime.class).toInstant(),
+					MealLabelingStatus.valueOf(resultSet.getString("labeling_status")),
+					resultSet.getString("nutrition_info"),
+					resultSet.getString("origin_info"),
+					findItems(persistedMealId));
+			})
+			.optional();
+	}
+
+	@Override
 	public Optional<Meal> findByNaturalKey(SchoolId schoolId, LocalDate mealDate, MealType mealType) {
 		return jdbcClient.sql("""
 				SELECT meal_id, school_id, meal_date, meal_type, source_version, source_received_at,
@@ -158,6 +186,61 @@ public class JdbcMealRepository implements MealRepository {
 				return new MealQueryResult(mealDate, mealType, meal);
 			})
 			.list();
+	}
+
+	@Override
+	@Transactional
+	public boolean saveAllergenLabels(Meal meal, Map<MealItemId, List<Integer>> allergenCodesByItemId) {
+		Objects.requireNonNull(allergenCodesByItemId, "메뉴 알레르기 라벨은 null일 수 없습니다.");
+		int mealRows = jdbcClient.sql("""
+				UPDATE meals
+				SET labeling_status = :labelingStatus,
+				    updated_at = CURRENT_TIMESTAMP
+				WHERE meal_id = :mealId AND labeling_status = 'PENDING'
+				""")
+			.param("mealId", meal.id().value())
+			.param("labelingStatus", meal.labelingStatus().name())
+			.update();
+		if (mealRows == 0) {
+			return false;
+		}
+		if (mealRows != 1) {
+			throw new IllegalStateException("급식 라벨링 상태 전이에 실패했습니다.");
+		}
+
+		jdbcClient.sql("""
+				DELETE FROM meal_item_allergens
+				WHERE meal_item_id IN (SELECT meal_item_id FROM meal_items WHERE meal_id = :mealId)
+				""")
+			.param("mealId", meal.id().value())
+			.update();
+
+		for (MealItem item : meal.items()) {
+			int itemRows = jdbcClient.sql("""
+					UPDATE meal_items
+					SET labeling_status = :labelingStatus,
+					    updated_at = CURRENT_TIMESTAMP
+					WHERE meal_item_id = :itemId AND meal_id = :mealId
+					""")
+				.param("itemId", item.id().value())
+				.param("mealId", meal.id().value())
+				.param("labelingStatus", item.labelingStatus().name())
+				.update();
+			if (itemRows != 1) {
+				throw new IllegalStateException("메뉴 라벨링 상태 전이에 실패했습니다.");
+			}
+			for (Integer allergenCode : allergenCodesByItemId.getOrDefault(item.id(), List.of())) {
+				jdbcClient.sql("""
+						INSERT INTO meal_item_allergens (meal_item_id, allergen_code, created_at, updated_at)
+						VALUES (:itemId, :allergenCode, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+						ON CONFLICT (meal_item_id, allergen_code) DO NOTHING
+						""")
+					.param("itemId", item.id().value())
+					.param("allergenCode", allergenCode)
+					.update();
+			}
+		}
+		return true;
 	}
 
 	private void insertItem(UUID mealId, MealItem item) {
