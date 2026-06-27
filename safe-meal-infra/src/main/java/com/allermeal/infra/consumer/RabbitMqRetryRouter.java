@@ -45,6 +45,10 @@ public class RabbitMqRetryRouter {
 		try {
 			processing.run();
 		} catch (RuntimeException exception) {
+			if (exception instanceof DeadLetterRoutingException) {
+				sendConfirmed(deadLetterExchange, deadLetterRoutingKey, message);
+				return;
+			}
 			int retryCount = retryCount(message);
 			if (retryCount >= maxRetries) {
 				sendConfirmed(deadLetterExchange, deadLetterRoutingKey, message);

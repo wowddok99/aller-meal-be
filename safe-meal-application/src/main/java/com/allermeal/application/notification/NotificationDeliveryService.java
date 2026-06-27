@@ -12,6 +12,7 @@ import com.allermeal.domain.user.User;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Objects;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 public class NotificationDeliveryService {
@@ -43,7 +44,7 @@ public class NotificationDeliveryService {
 		this.retryDelay = retryDelay;
 	}
 
-	@Transactional
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public NotificationDeliveryResult deliver(NotificationId notificationId) {
 		Objects.requireNonNull(notificationId, "알림 ID는 null일 수 없습니다.");
 		NotificationRequest request = notificationRequestRepository.findById(notificationId).orElse(null);
