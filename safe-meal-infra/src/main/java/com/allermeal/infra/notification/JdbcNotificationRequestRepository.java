@@ -93,6 +93,50 @@ public class JdbcNotificationRequestRepository implements NotificationRequestRep
 		return insert(toSave, 0);
 	}
 
+	@Override
+	public Optional<NotificationRequest> findById(NotificationId notificationId) {
+		return jdbcClient.sql("""
+				SELECT notification_id, notification_target_id, child_id, user_id, notification_date,
+				       channel, reason, dedup_key, correction_key, content_version, is_correction,
+				       supersedes_notification_id, status, attempt_count, max_attempts, next_attempt_at,
+				       sent_at, failure_code, failure_message, created_at, updated_at
+				FROM notification_requests
+				WHERE notification_id = :notificationId
+				""")
+			.param("notificationId", notificationId.value())
+			.query(this::mapRequest)
+			.optional();
+	}
+
+	@Override
+	public NotificationRequest save(NotificationStatus expectedStatus, NotificationRequest request) {
+		int rows = jdbcClient.sql("""
+				UPDATE notification_requests
+				SET status = :status,
+				    attempt_count = :attemptCount,
+				    next_attempt_at = :nextAttemptAt,
+				    sent_at = :sentAt,
+				    failure_code = :failureCode,
+				    failure_message = :failureMessage,
+				    updated_at = :updatedAt
+				WHERE notification_id = :notificationId AND status = :expectedStatus
+				""")
+			.param("status", request.status().name())
+			.param("attemptCount", request.attemptCount())
+			.param("nextAttemptAt", request.nextAttemptAt() == null ? null : Timestamp.from(request.nextAttemptAt()))
+			.param("sentAt", request.sentAt() == null ? null : Timestamp.from(request.sentAt()))
+			.param("failureCode", request.failureCode())
+			.param("failureMessage", request.failureMessage())
+			.param("updatedAt", Timestamp.from(request.timestamps().updatedAt()))
+			.param("notificationId", request.id().value())
+			.param("expectedStatus", expectedStatus.name())
+			.update();
+		if (rows != 1) {
+			throw new IllegalStateException("알림 요청 상태 전이에 실패했습니다.");
+		}
+		return findById(request.id()).orElseThrow();
+	}
+
 	private NotificationRequestSaveResult insert(NotificationRequest request, int canceledSupersededCount) {
 		int created = jdbcClient.sql("""
 				INSERT INTO notification_requests (
