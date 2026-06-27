@@ -12,8 +12,32 @@ spring:
     password: "${RABBITMQ_DEFAULT_PASS:local-rabbitmq-password}"
     publisher-confirm-type: correlated
     publisher-returns: true
+  data:
+    redis:
+      host: "${REDIS_HOST:localhost}"
+      port: "${REDIS_PORT:6379}"
+      connect-timeout: 500ms
+      timeout: 500ms
+  mail:
+    host: "${SMTP_HOST:localhost}"
+    port: "${SMTP_PORT:1025}"
 
 safe-meal:
+  auth:
+    email-encryption-key: "${AUTH_EMAIL_ENCRYPTION_KEY}"
+    email-encryption-key-version: "${AUTH_EMAIL_ENCRYPTION_KEY_VERSION:v1-local}"
+    email-verification-token-ttl: "${EMAIL_VERIFICATION_TOKEN_TTL:30m}"
+    email-verification-base-url: "${EMAIL_VERIFICATION_BASE_URL:http://localhost:8080/api/v1/auth/email-verifications/confirm?token=}"
+    password-reset-token-ttl: "${PASSWORD_RESET_TOKEN_TTL:30m}"
+    password-reset-base-url: "${PASSWORD_RESET_BASE_URL:http://localhost:8080/password-reset?token=}"
+    email-from: "${AUTH_EMAIL_FROM:no-reply@allermeal.local}"
+    password-hash-iterations: "${PASSWORD_HASH_ITERATIONS:210000}"
+    access-token-signing-key: "${AUTH_ACCESS_TOKEN_SIGNING_KEY}"
+    access-token-ttl: "${AUTH_ACCESS_TOKEN_TTL:15m}"
+    refresh-token-ttl: "${AUTH_REFRESH_TOKEN_TTL:14d}"
+    login-max-failures: "${AUTH_LOGIN_MAX_FAILURES:5}"
+    login-failure-window: "${AUTH_LOGIN_FAILURE_WINDOW:15m}"
+    login-lock-duration: "${AUTH_LOGIN_LOCK_DURATION:15m}"
   neis:
     base-url: "${NEIS_BASE_URL:https://open.neis.go.kr/hub}"
     api-key: "${NEIS_API_KEY:}"
@@ -36,6 +60,9 @@ safe-meal:
       fixed-delay: 1000
   consumer:
     enabled: true
+  notification:
+    email-from: "${AUTH_EMAIL_FROM:no-reply@allermeal.local}"
+    retry-delay: 0s
   rabbitmq:
     publisher-confirm-timeout: 5s
     events:
