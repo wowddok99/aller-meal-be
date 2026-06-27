@@ -2,9 +2,12 @@ package com.allermeal.application.port.out;
 
 import com.allermeal.application.port.out.result.NotificationRequestSaveResult;
 import com.allermeal.application.port.out.result.PendingNotificationTargetResult;
+import com.allermeal.application.notification.NotificationHistoryResult;
+import com.allermeal.domain.child.ChildProfileId;
 import com.allermeal.domain.notification.NotificationRequest;
 import com.allermeal.domain.notification.NotificationId;
 import com.allermeal.domain.notification.NotificationStatus;
+import com.allermeal.domain.user.UserId;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,4 +20,6 @@ public interface NotificationRequestRepository {
 	Optional<NotificationRequest> findById(NotificationId notificationId);
 
 	NotificationRequest save(NotificationStatus expectedStatus, NotificationRequest request);
+
+	NotificationHistoryResult findHistoryByChild(UserId ownerId, ChildProfileId childProfileId, int page, int pageSize);
 }

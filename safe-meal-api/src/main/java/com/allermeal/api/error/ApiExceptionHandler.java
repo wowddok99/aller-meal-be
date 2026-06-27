@@ -17,6 +17,7 @@ import com.allermeal.application.auth.InvalidSignupRequestException;
 import com.allermeal.application.auth.UnauthorizedAccessException;
 import com.allermeal.application.auth.UserEmailNotFoundException;
 import com.allermeal.application.school.InvalidSchoolSearchRequestException;
+import com.allermeal.application.notification.InvalidNotificationHistoryRequestException;
 import com.allermeal.application.school.NeisApiException;
 import com.allermeal.application.school.NeisInvalidResponseException;
 import com.allermeal.application.school.SchoolNotFoundException;
@@ -111,6 +112,11 @@ public final class ApiExceptionHandler {
 
 	@ExceptionHandler(InvalidChildNotificationPreferenceRequestException.class)
 	ResponseEntity<ApiErrorResponse> handleInvalidChildNotificationPreferenceRequest(HttpServletRequest request) {
+		return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "요청 값이 올바르지 않습니다.", request);
+	}
+
+	@ExceptionHandler(InvalidNotificationHistoryRequestException.class)
+	ResponseEntity<ApiErrorResponse> handleInvalidNotificationHistoryRequest(HttpServletRequest request) {
 		return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "요청 값이 올바르지 않습니다.", request);
 	}
 

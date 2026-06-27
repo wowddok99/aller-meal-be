@@ -1,6 +1,8 @@
 package com.allermeal.infra.notification;
 
 import com.allermeal.application.port.out.NotificationRequestRepository;
+import com.allermeal.application.notification.NotificationHistoryItemResult;
+import com.allermeal.application.notification.NotificationHistoryResult;
 import com.allermeal.application.port.out.result.NotificationRequestSaveResult;
 import com.allermeal.application.port.out.result.PendingNotificationTargetResult;
 import com.allermeal.domain.child.ChildProfileId;
@@ -137,6 +139,48 @@ public class JdbcNotificationRequestRepository implements NotificationRequestRep
 		return findById(request.id()).orElseThrow();
 	}
 
+	@Override
+	public NotificationHistoryResult findHistoryByChild(
+		UserId ownerId,
+		ChildProfileId childProfileId,
+		int page,
+		int pageSize
+	) {
+		int offset = offset(page, pageSize);
+		long totalCount = jdbcClient.sql("""
+				SELECT count(*)
+				FROM notification_requests
+				WHERE user_id = :ownerId AND child_id = :childId
+				""")
+			.param("ownerId", ownerId.value())
+			.param("childId", childProfileId.value())
+			.query(Long.class)
+			.single();
+		List<NotificationHistoryItemResult> notifications = jdbcClient.sql("""
+				SELECT notification_id, notification_date, channel, reason, status, attempt_count,
+				       sent_at, failure_code, created_at, updated_at
+				FROM notification_requests
+				WHERE user_id = :ownerId AND child_id = :childId
+				ORDER BY notification_date DESC, created_at DESC, notification_id DESC
+				LIMIT :limit OFFSET :offset
+				""")
+			.param("ownerId", ownerId.value())
+			.param("childId", childProfileId.value())
+			.param("limit", pageSize)
+			.param("offset", offset)
+			.query(this::mapHistoryItem)
+			.list();
+		return new NotificationHistoryResult(notifications, page, pageSize, Math.toIntExact(totalCount));
+	}
+
+	private int offset(int page, int pageSize) {
+		try {
+			return Math.multiplyExact(page - 1, pageSize);
+		} catch (ArithmeticException exception) {
+			throw new IllegalArgumentException("알림 이력 페이지 offset이 허용 범위를 초과했습니다.", exception);
+		}
+	}
+
 	private NotificationRequestSaveResult insert(NotificationRequest request, int canceledSupersededCount) {
 		int created = jdbcClient.sql("""
 				INSERT INTO notification_requests (
@@ -264,5 +308,20 @@ public class JdbcNotificationRequestRepository implements NotificationRequestRep
 			new EntityTimestamps(
 				resultSet.getObject("created_at", OffsetDateTime.class).toInstant(),
 				resultSet.getObject("updated_at", OffsetDateTime.class).toInstant()));
+	}
+
+	private NotificationHistoryItemResult mapHistoryItem(ResultSet resultSet, int rowNum) throws SQLException {
+		OffsetDateTime sentAt = resultSet.getObject("sent_at", OffsetDateTime.class);
+		return new NotificationHistoryItemResult(
+			new NotificationId(resultSet.getObject("notification_id", UUID.class)),
+			resultSet.getObject("notification_date", java.time.LocalDate.class),
+			NotificationChannel.valueOf(resultSet.getString("channel")),
+			NotificationReason.valueOf(resultSet.getString("reason")),
+			NotificationStatus.valueOf(resultSet.getString("status")),
+			resultSet.getInt("attempt_count"),
+			sentAt == null ? null : sentAt.toInstant(),
+			resultSet.getString("failure_code"),
+			resultSet.getObject("created_at", OffsetDateTime.class).toInstant(),
+			resultSet.getObject("updated_at", OffsetDateTime.class).toInstant());
 	}
 }
