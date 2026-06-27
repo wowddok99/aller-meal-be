@@ -59,3 +59,8 @@ safe-meal:
       enabled: "${SCHOOL_COLLECTION_SCHEDULER_ENABLED:true}"
       fixed-delay: "${SCHOOL_COLLECTION_SCHEDULER_FIXED_DELAY:PT1H}"
       days-ahead: "${SCHOOL_COLLECTION_SCHEDULER_DAYS_AHEAD:7}"
+  notification-target:
+    scheduler:
+      enabled: "${NOTIFICATION_TARGET_SCHEDULER_ENABLED:true}"
+      fixed-delay: "${NOTIFICATION_TARGET_SCHEDULER_FIXED_DELAY:PT1M}"
+      lookback: "${NOTIFICATION_TARGET_SCHEDULER_LOOKBACK:PT5M}"
