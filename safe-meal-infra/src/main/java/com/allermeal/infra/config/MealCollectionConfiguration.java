@@ -2,6 +2,7 @@ package com.allermeal.infra.config;
 
 import com.allermeal.application.meal.MealCollectionService;
 import com.allermeal.application.meal.MealCollectionEntrypoint;
+import com.allermeal.application.meal.RegisteredSchoolMealCollectionScheduler;
 import com.allermeal.application.port.out.CollectionJobRepository;
 import com.allermeal.application.port.out.MealCollectionDispatcher;
 import com.allermeal.application.port.out.MealRepository;
@@ -11,12 +12,14 @@ import com.allermeal.application.port.out.NeisMealClient;
 import com.allermeal.application.port.out.NeisMealNormalizer;
 import com.allermeal.application.port.out.RawPayloadStorage;
 import com.allermeal.application.port.out.SchoolRepository;
+import com.allermeal.application.port.out.SchoolCollectionSubscriptionRepository;
 import com.allermeal.application.meal.PublicMealQueryService;
 import com.allermeal.infra.meal.AsyncMealCollectionDispatcher;
 import com.allermeal.infra.meal.RedisPublicMealQueryCache;
 import java.time.Clock;
 import java.time.Duration;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskExecutor;
@@ -53,6 +56,18 @@ public class MealCollectionConfiguration {
 	}
 
 	@Bean
+	RegisteredSchoolMealCollectionScheduler registeredSchoolMealCollectionScheduler(
+		SchoolCollectionSubscriptionRepository subscriptionRepository,
+		CollectionJobRepository collectionJobRepository,
+		MealRepository mealRepository,
+		MealCollectionDispatcher collectionDispatcher,
+		Clock clock
+	) {
+		return new RegisteredSchoolMealCollectionScheduler(
+			subscriptionRepository, collectionJobRepository, mealRepository, collectionDispatcher, clock);
+	}
+
+	@Bean
 	TaskExecutor publicMealCollectionExecutor() {
 		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
 		executor.setThreadNamePrefix("public-meal-collection-");
@@ -64,6 +79,7 @@ public class MealCollectionConfiguration {
 
 	@Bean
 	MealCollectionDispatcher mealCollectionDispatcher(
+		@Qualifier("publicMealCollectionExecutor")
 		TaskExecutor publicMealCollectionExecutor,
 		MealCollectionService mealCollectionService
 	) {
