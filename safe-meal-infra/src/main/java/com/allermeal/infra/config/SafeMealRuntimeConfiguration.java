@@ -6,6 +6,7 @@ import com.allermeal.application.child.ChildAllergenService;
 import com.allermeal.application.child.ChildNotificationPreferenceService;
 import com.allermeal.application.meal.MealAllergenLabelingService;
 import com.allermeal.application.meal.NeisAllergenLabelParser;
+import com.allermeal.application.notification.NotificationDeliveryService;
 import com.allermeal.application.notification.NotificationRequestCreationService;
 import com.allermeal.application.meal.PersonalizedMealQueryService;
 import com.allermeal.application.meal.PublicMealQueryService;
@@ -17,14 +18,18 @@ import com.allermeal.application.port.out.ChildProfileRepository;
 import com.allermeal.application.port.out.ChildNotificationPreferenceRepository;
 import com.allermeal.application.port.out.CollectionJobRepository;
 import com.allermeal.application.port.out.EventPublisher;
+import com.allermeal.application.port.out.EmailDecryptor;
 import com.allermeal.application.port.out.MealCollectionDispatcher;
 import com.allermeal.application.port.out.MealRepository;
+import com.allermeal.application.port.out.NotificationMailSender;
 import com.allermeal.application.port.out.NotificationRequestRepository;
 import com.allermeal.application.port.out.OutboxEventRepository;
 import com.allermeal.application.port.out.PublicMealQueryCache;
 import com.allermeal.application.port.out.SchoolRepository;
 import com.allermeal.application.port.out.SchoolCollectionSubscriptionRepository;
+import com.allermeal.application.port.out.UserRepository;
 import com.allermeal.infra.consumer.RabbitMqRetryRouter;
+import com.allermeal.infra.notification.SmtpNotificationMailSender;
 import com.allermeal.infra.outbox.RabbitMqEventPublisher;
 import java.time.Clock;
 import java.time.Duration;
@@ -34,6 +39,7 @@ import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.mail.javamail.JavaMailSender;
 import tools.jackson.databind.ObjectMapper;
 
 @Configuration
@@ -124,6 +130,27 @@ public class SafeMealRuntimeConfiguration {
 		Clock clock
 	) {
 		return new NotificationRequestCreationService(notificationRequestRepository, outboxEventRepository, clock);
+	}
+
+	@Bean
+	NotificationMailSender notificationMailSender(
+		JavaMailSender mailSender,
+		@Value("${safe-meal.notification.email-from:no-reply@allermeal.local}") String from
+	) {
+		return new SmtpNotificationMailSender(mailSender, from);
+	}
+
+	@Bean
+	NotificationDeliveryService notificationDeliveryService(
+		NotificationRequestRepository notificationRequestRepository,
+		UserRepository userRepository,
+		EmailDecryptor emailDecryptor,
+		NotificationMailSender notificationMailSender,
+		Clock clock,
+		@Value("${safe-meal.notification.retry-delay:5m}") Duration retryDelay
+	) {
+		return new NotificationDeliveryService(
+			notificationRequestRepository, userRepository, emailDecryptor, notificationMailSender, clock, retryDelay);
 	}
 
 	@Bean

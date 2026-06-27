@@ -57,7 +57,7 @@ public class AuthConfiguration {
 	}
 
 	@Bean
-	EmailEncryptor emailEncryptor(
+	AesGcmEmailEncryptor emailCipher(
 		@Value("${safe-meal.auth.email-encryption-key}") String encodedKey,
 		@Value("${safe-meal.auth.email-encryption-key-version:v1-local}") String keyVersion,
 		SecureRandom secureRandom
