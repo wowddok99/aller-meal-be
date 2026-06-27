@@ -1,26 +1,44 @@
 package com.allermeal.batch;
 
+import com.allermeal.application.outbox.OutboxPublisher;
+import com.allermeal.application.port.out.EventPublisher;
+import com.allermeal.application.port.out.OutboxEventRepository;
 import com.allermeal.infra.collection.JdbcCollectionJobRepository;
+import com.allermeal.infra.config.NotificationTargetConfiguration;
 import com.allermeal.infra.config.MealCollectionConfiguration;
 import com.allermeal.infra.config.MinioConfiguration;
+import com.allermeal.infra.config.RabbitMqTopologyConfiguration;
+import com.allermeal.infra.child.JdbcChildAllergenRepository;
 import com.allermeal.infra.meal.NeisHttpMealClient;
+import com.allermeal.infra.notification.JdbcNotificationTargetRepository;
+import com.allermeal.infra.outbox.RabbitMqEventPublisher;
 import com.allermeal.infra.outbox.JdbcOutboxEventRepository;
 import com.allermeal.infra.raw.MinioRawPayloadStorage;
 import com.allermeal.infra.school.JdbcSchoolRepository;
 import java.time.Clock;
+import java.time.Duration;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import tools.jackson.databind.ObjectMapper;
 
 @EnableScheduling
-@Import({MealCollectionConfiguration.class, MinioConfiguration.class})
+@Import({
+	MealCollectionConfiguration.class,
+	MinioConfiguration.class,
+	NotificationTargetConfiguration.class,
+	RabbitMqTopologyConfiguration.class
+})
 @SpringBootApplication(scanBasePackageClasses = {
 	SafeMealBatchApplication.class,
+	JdbcChildAllergenRepository.class,
 	JdbcCollectionJobRepository.class,
 	NeisHttpMealClient.class,
+	JdbcNotificationTargetRepository.class,
 	JdbcOutboxEventRepository.class,
 	MinioRawPayloadStorage.class,
 	JdbcSchoolRepository.class
@@ -39,5 +57,21 @@ public class SafeMealBatchApplication {
 	@Bean
 	ObjectMapper objectMapper() {
 		return new ObjectMapper();
+	}
+
+	@Bean
+	OutboxPublisher outboxPublisher(OutboxEventRepository repository, EventPublisher eventPublisher, Clock clock) {
+		return new OutboxPublisher(repository, eventPublisher, clock);
+	}
+
+	@Bean
+	EventPublisher eventPublisher(
+		RabbitTemplate rabbitTemplate,
+		@Value("${safe-meal.rabbitmq.events.exchange}") String exchange,
+		@Value("${safe-meal.rabbitmq.events.routing-key}") String routingKey,
+		@Value("${safe-meal.rabbitmq.publisher-confirm-timeout}") Duration confirmTimeout
+	) {
+		rabbitTemplate.setMandatory(true);
+		return new RabbitMqEventPublisher(rabbitTemplate, exchange, routingKey, confirmTimeout);
 	}
 }
