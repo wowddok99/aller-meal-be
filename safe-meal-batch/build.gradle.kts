@@ -6,6 +6,7 @@ plugins {
 
 dependencies {
 	implementation(project(":safe-meal-application"))
+	implementation(project(":safe-meal-infra"))
 	implementation("org.springframework.boot:spring-boot-starter")
-	runtimeOnly(project(":safe-meal-infra"))
+	implementation("tools.jackson.core:jackson-databind:3.1.2")
 }

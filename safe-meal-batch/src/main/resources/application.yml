@@ -55,3 +55,7 @@ safe-meal:
   collection:
     run-once:
       enabled: false
+    scheduler:
+      enabled: "${SCHOOL_COLLECTION_SCHEDULER_ENABLED:true}"
+      fixed-delay: "${SCHOOL_COLLECTION_SCHEDULER_FIXED_DELAY:PT1H}"
+      days-ahead: "${SCHOOL_COLLECTION_SCHEDULER_DAYS_AHEAD:7}"
