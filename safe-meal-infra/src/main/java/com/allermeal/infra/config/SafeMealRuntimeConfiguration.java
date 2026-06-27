@@ -6,6 +6,7 @@ import com.allermeal.application.child.ChildAllergenService;
 import com.allermeal.application.child.ChildNotificationPreferenceService;
 import com.allermeal.application.meal.MealAllergenLabelingService;
 import com.allermeal.application.meal.NeisAllergenLabelParser;
+import com.allermeal.application.notification.NotificationRequestCreationService;
 import com.allermeal.application.meal.PersonalizedMealQueryService;
 import com.allermeal.application.meal.PublicMealQueryService;
 import com.allermeal.application.port.out.AllergenRepository;
@@ -18,6 +19,7 @@ import com.allermeal.application.port.out.CollectionJobRepository;
 import com.allermeal.application.port.out.EventPublisher;
 import com.allermeal.application.port.out.MealCollectionDispatcher;
 import com.allermeal.application.port.out.MealRepository;
+import com.allermeal.application.port.out.NotificationRequestRepository;
 import com.allermeal.application.port.out.OutboxEventRepository;
 import com.allermeal.application.port.out.PublicMealQueryCache;
 import com.allermeal.application.port.out.SchoolRepository;
@@ -113,6 +115,15 @@ public class SafeMealRuntimeConfiguration {
 	@Bean
 	OutboxPublisher outboxPublisher(OutboxEventRepository repository, EventPublisher eventPublisher, Clock clock) {
 		return new OutboxPublisher(repository, eventPublisher, clock);
+	}
+
+	@Bean
+	NotificationRequestCreationService notificationRequestCreationService(
+		NotificationRequestRepository notificationRequestRepository,
+		OutboxEventRepository outboxEventRepository,
+		Clock clock
+	) {
+		return new NotificationRequestCreationService(notificationRequestRepository, outboxEventRepository, clock);
 	}
 
 	@Bean
