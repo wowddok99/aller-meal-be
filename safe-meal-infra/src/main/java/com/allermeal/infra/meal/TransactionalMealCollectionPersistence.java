@@ -1,17 +1,22 @@
 package com.allermeal.infra.meal;
 
+import com.allermeal.application.meal.MealLabelingEvents;
 import com.allermeal.application.port.out.CollectionJobRepository;
 import com.allermeal.application.port.out.MealCollectionPersistence;
 import com.allermeal.application.port.out.MealRepository;
+import com.allermeal.application.port.out.OutboxEventRepository;
 import com.allermeal.application.port.out.result.MealCollectionCompletionResult;
 import com.allermeal.application.port.out.result.MealSaveResult;
 import com.allermeal.domain.collection.CollectionJob;
 import com.allermeal.domain.collection.CollectionJobStatus;
 import com.allermeal.domain.meal.Meal;
+import com.allermeal.domain.outbox.OutboxEvent;
 import com.allermeal.domain.raw.RawObjectMetadata;
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,15 +27,21 @@ public class TransactionalMealCollectionPersistence implements MealCollectionPer
 	private final JdbcClient jdbcClient;
 	private final MealRepository mealRepository;
 	private final CollectionJobRepository collectionJobRepository;
+	private final OutboxEventRepository outboxEventRepository;
+	private final Clock clock;
 
 	public TransactionalMealCollectionPersistence(
 		JdbcClient jdbcClient,
 		MealRepository mealRepository,
-		CollectionJobRepository collectionJobRepository
+		CollectionJobRepository collectionJobRepository,
+		OutboxEventRepository outboxEventRepository,
+		Clock clock
 	) {
 		this.jdbcClient = jdbcClient;
 		this.mealRepository = mealRepository;
 		this.collectionJobRepository = collectionJobRepository;
+		this.outboxEventRepository = outboxEventRepository;
+		this.clock = clock;
 	}
 
 	@Override
@@ -56,9 +67,21 @@ public class TransactionalMealCollectionPersistence implements MealCollectionPer
 			savedMeals = List.of();
 		} else {
 			savedMeals = meals.stream().map(mealRepository::save).toList();
+			savedMeals.stream()
+				.filter(MealSaveResult::applied)
+				.map(MealSaveResult::meal)
+				.forEach(this::saveMealCollectedEvent);
 		}
 		CollectionJob completed = collectionJobRepository.save(CollectionJobStatus.RUNNING, succeededJob);
 		return new MealCollectionCompletionResult(completed, savedMeals);
+	}
+
+	private void saveMealCollectedEvent(Meal meal) {
+		outboxEventRepository.save(OutboxEvent.pending(
+			UUID.randomUUID(),
+			MealLabelingEvents.MEAL_COLLECTED,
+			MealLabelingEvents.mealCollectedPayload(meal),
+			clock.instant()));
 	}
 
 	private boolean updateCollectionVersion(CollectionJob job, RawObjectMetadata rawObject, boolean hasMeal) {

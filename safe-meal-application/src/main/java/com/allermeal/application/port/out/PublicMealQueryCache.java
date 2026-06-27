@@ -12,5 +12,7 @@ public interface PublicMealQueryCache {
 
 	void put(PublicMealQueryResult result);
 
+	void evictDailyAndWeekly(SchoolId schoolId, LocalDate mealDate);
+
 	boolean tryAcquireDispatch(SchoolId schoolId, PublicMealTarget target);
 }
