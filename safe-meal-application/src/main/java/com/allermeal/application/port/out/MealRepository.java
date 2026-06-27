@@ -22,5 +22,7 @@ public interface MealRepository {
 
 	List<MealQueryResult> findCollectedInRange(SchoolId schoolId, LocalDate startDate, LocalDate endDate);
 
+	Map<MealItemId, List<Integer>> findAllergenCodesByMealIds(List<MealId> mealIds);
+
 	boolean saveAllergenLabels(Meal meal, Map<MealItemId, List<Integer>> allergenCodesByItemId);
 }

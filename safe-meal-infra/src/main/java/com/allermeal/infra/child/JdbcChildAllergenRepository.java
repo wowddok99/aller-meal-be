@@ -34,4 +34,19 @@ public class JdbcChildAllergenRepository implements ChildAllergenRepository {
 		}
 		return true;
 	}
+
+	@Override
+	public List<Integer> findAllergenCodes(UserId ownerId, ChildProfileId childProfileId) {
+		return jdbcClient.sql("""
+				SELECT cpa.allergen_code
+				FROM child_profile_allergens cpa
+				JOIN child_profiles cp ON cp.child_id = cpa.child_id
+				WHERE cp.child_id = :childId AND cp.user_id = :userId
+				ORDER BY cpa.allergen_code
+				""")
+			.param("childId", childProfileId.value())
+			.param("userId", ownerId.value())
+			.query(Integer.class)
+			.list();
+	}
 }

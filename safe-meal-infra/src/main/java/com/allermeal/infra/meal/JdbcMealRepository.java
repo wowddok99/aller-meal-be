@@ -14,6 +14,7 @@ import com.allermeal.domain.school.SchoolId;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -186,6 +187,30 @@ public class JdbcMealRepository implements MealRepository {
 				return new MealQueryResult(mealDate, mealType, meal);
 			})
 			.list();
+	}
+
+	@Override
+	public Map<MealItemId, List<Integer>> findAllergenCodesByMealIds(List<MealId> mealIds) {
+		Objects.requireNonNull(mealIds, "급식 ID 목록은 null일 수 없습니다.");
+		if (mealIds.isEmpty()) {
+			return Map.of();
+		}
+		Map<MealItemId, List<Integer>> allergenCodes = new HashMap<>();
+		jdbcClient.sql("""
+				SELECT mia.meal_item_id, mia.allergen_code
+				FROM meal_item_allergens mia
+				JOIN meal_items mi ON mi.meal_item_id = mia.meal_item_id
+				WHERE mi.meal_id IN (:mealIds)
+				ORDER BY mia.meal_item_id, mia.allergen_code
+				""")
+			.param("mealIds", mealIds.stream().map(MealId::value).toList())
+			.query((resultSet, rowNum) -> Map.entry(
+				new MealItemId(resultSet.getObject("meal_item_id", UUID.class)),
+				resultSet.getInt("allergen_code")))
+			.list()
+			.forEach(entry -> allergenCodes.computeIfAbsent(entry.getKey(), ignored -> new java.util.ArrayList<>())
+				.add(entry.getValue()));
+		return allergenCodes;
 	}
 
 	@Override

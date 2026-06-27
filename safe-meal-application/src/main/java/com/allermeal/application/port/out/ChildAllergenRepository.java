@@ -7,4 +7,6 @@ import java.util.List;
 public interface ChildAllergenRepository {
 
 	boolean replaceAll(UserId ownerId, ChildProfileId childProfileId, List<Integer> allergenCodes);
+
+	List<Integer> findAllergenCodes(UserId ownerId, ChildProfileId childProfileId);
 }
