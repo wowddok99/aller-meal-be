@@ -64,3 +64,8 @@ safe-meal:
       enabled: "${NOTIFICATION_TARGET_SCHEDULER_ENABLED:true}"
       fixed-delay: "${NOTIFICATION_TARGET_SCHEDULER_FIXED_DELAY:PT1M}"
       lookback: "${NOTIFICATION_TARGET_SCHEDULER_LOOKBACK:PT5M}"
+  notification-request:
+    scheduler:
+      enabled: "${NOTIFICATION_REQUEST_SCHEDULER_ENABLED:true}"
+      fixed-delay: "${NOTIFICATION_REQUEST_SCHEDULER_FIXED_DELAY:PT1M}"
+      limit: "${NOTIFICATION_REQUEST_SCHEDULER_LIMIT:100}"

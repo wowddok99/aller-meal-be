@@ -7,6 +7,7 @@ import com.allermeal.application.child.ChildNotificationPreferenceService;
 import com.allermeal.application.meal.MealAllergenLabelingService;
 import com.allermeal.application.meal.NeisAllergenLabelParser;
 import com.allermeal.application.notification.NotificationDeliveryService;
+import com.allermeal.application.notification.NotificationHistoryService;
 import com.allermeal.application.notification.NotificationRequestCreationService;
 import com.allermeal.application.meal.PersonalizedMealQueryService;
 import com.allermeal.application.meal.PublicMealQueryService;
@@ -130,6 +131,14 @@ public class SafeMealRuntimeConfiguration {
 		Clock clock
 	) {
 		return new NotificationRequestCreationService(notificationRequestRepository, outboxEventRepository, clock);
+	}
+
+	@Bean
+	NotificationHistoryService notificationHistoryService(
+		ChildProfileRepository childProfileRepository,
+		NotificationRequestRepository notificationRequestRepository
+	) {
+		return new NotificationHistoryService(childProfileRepository, notificationRequestRepository);
 	}
 
 	@Bean
