@@ -61,6 +61,25 @@ public final class User {
 			null);
 	}
 
+	public static User createAdmin(
+		UserId id,
+		EncryptedEmail encryptedEmail,
+		EmailSearchHash emailSearchHash,
+		PasswordHash passwordHash,
+		Instant createdAt
+	) {
+		return new User(
+			id,
+			encryptedEmail,
+			emailSearchHash,
+			passwordHash,
+			UserRole.ADMIN,
+			UserStatus.ACTIVE,
+			EmailVerificationStatus.VERIFIED,
+			EntityTimestamps.createdAt(createdAt),
+			null);
+	}
+
 	public static User restoreFromPersistence(
 		UserId id,
 		EncryptedEmail encryptedEmail,
@@ -92,6 +111,29 @@ public final class User {
 			throw new IllegalStateException("DISABLED 사용자는 상태를 변경할 수 없습니다.");
 		}
 		return withState(status, EmailVerificationStatus.VERIFIED, changedAt);
+	}
+
+	public User promoteToAdmin(Instant changedAt) {
+		if (role == UserRole.ADMIN) {
+			return this;
+		}
+		if (status != UserStatus.ACTIVE) {
+			throw new IllegalStateException("ACTIVE 사용자만 관리자 권한으로 승격할 수 있습니다.");
+		}
+		Objects.requireNonNull(changedAt, "변경 시각은 null일 수 없습니다.");
+		if (changedAt.isBefore(timestamps.updatedAt())) {
+			throw new IllegalArgumentException("변경 시각은 기존 updatedAt보다 이전일 수 없습니다.");
+		}
+		return new User(
+			id,
+			encryptedEmail,
+			emailSearchHash,
+			passwordHash,
+			UserRole.ADMIN,
+			status,
+			emailVerificationStatus,
+			new EntityTimestamps(timestamps.createdAt(), changedAt),
+			version);
 	}
 
 	public User changePassword(PasswordHash nextPasswordHash, Instant changedAt) {

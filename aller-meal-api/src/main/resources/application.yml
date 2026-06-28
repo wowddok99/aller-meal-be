@@ -41,6 +41,10 @@ aller-meal:
     rate-limit-max-requests: "${AUTH_RATE_LIMIT_MAX_REQUESTS:20}"
     rate-limit-window: "${AUTH_RATE_LIMIT_WINDOW:1m}"
     allowed-origins: "${AUTH_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:8080}"
+  admin:
+    bootstrap:
+      email: "${ADMIN_BOOTSTRAP_EMAIL:}"
+      password: "${ADMIN_BOOTSTRAP_PASSWORD:}"
   neis:
     base-url: "${NEIS_BASE_URL:https://open.neis.go.kr/hub}"
     api-key: "${NEIS_API_KEY:}"

@@ -1,5 +1,8 @@
 package com.allermeal.api.error;
 
+import com.allermeal.application.admin.AdminAuthorizationException;
+import com.allermeal.application.admin.InvalidAdminUserRoleChangeException;
+import com.allermeal.application.admin.AdminUserNotFoundException;
 import com.allermeal.api.error.response.ApiError;
 import com.allermeal.api.error.response.ApiErrorResponse;
 import com.allermeal.application.auth.DuplicateEmailException;
@@ -141,6 +144,24 @@ public final class ApiExceptionHandler {
 	ResponseEntity<ApiErrorResponse> handleUnauthorizedAccess(HttpServletRequest request) {
 		return response(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED",
 			"로그인이 필요합니다.", request);
+	}
+
+	@ExceptionHandler(AdminAuthorizationException.class)
+	ResponseEntity<ApiErrorResponse> handleAdminAuthorization(HttpServletRequest request) {
+		return response(HttpStatus.FORBIDDEN, "FORBIDDEN",
+			"관리자 권한이 필요합니다.", request);
+	}
+
+	@ExceptionHandler(AdminUserNotFoundException.class)
+	ResponseEntity<ApiErrorResponse> handleAdminUserNotFound(HttpServletRequest request) {
+		return response(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND",
+			"요청한 사용자를 찾을 수 없습니다.", request);
+	}
+
+	@ExceptionHandler(InvalidAdminUserRoleChangeException.class)
+	ResponseEntity<ApiErrorResponse> handleInvalidAdminUserRoleChange(HttpServletRequest request) {
+		return response(HttpStatus.CONFLICT, "INVALID_ADMIN_ROLE_CHANGE",
+			"관리자 권한으로 변경할 수 없는 사용자입니다.", request);
 	}
 
 	@ExceptionHandler(NeisApiException.class)
