@@ -1,14 +1,14 @@
 services:
-  postgres:
+  aller-meal-postgres:
     image: postgres:17.5-alpine
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-safe_meal}
-      POSTGRES_USER: ${POSTGRES_USER:-safe_meal}
+      POSTGRES_DB: ${POSTGRES_DB:-aller_meal}
+      POSTGRES_USER: ${POSTGRES_USER:-aller_meal}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-postgres-password}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - aller-meal-postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -17,13 +17,13 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  redis:
+  aller-meal-redis:
     image: redis:8.0.2-alpine
     command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
-      - redis-data:/data
+      - aller-meal-redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -32,17 +32,17 @@ services:
       start_period: 5s
     restart: unless-stopped
 
-  rabbitmq:
+  aller-meal-rabbitmq:
     image: rabbitmq:4.1.0-management-alpine
-    hostname: safe-meal-rabbitmq
+    hostname: aller-meal-rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-safe_meal}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-aller_meal}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-local-rabbitmq-password}
     ports:
       - "127.0.0.1:5672:5672"
       - "127.0.0.1:15672:15672"
     volumes:
-      - rabbitmq-data:/var/lib/rabbitmq
+      - aller-meal-rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -51,17 +51,17 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  minio:
+  aller-meal-minio:
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-safe_meal}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-aller_meal}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-local-minio-password}
     ports:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9001:9001"
     volumes:
-      - minio-data:/data
+      - aller-meal-minio-data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
@@ -70,7 +70,7 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  mailpit:
+  aller-meal-mailpit:
     image: axllent/mailpit:v1.26.0
     environment:
       MP_DATABASE: /data/mailpit.db
@@ -78,7 +78,7 @@ services:
       - "127.0.0.1:1025:1025"
       - "127.0.0.1:8025:8025"
     volumes:
-      - mailpit-data:/data
+      - aller-meal-mailpit-data:/data
     healthcheck:
       test: ["CMD", "/mailpit", "readyz"]
       interval: 5s
@@ -88,8 +88,8 @@ services:
     restart: unless-stopped
 
 volumes:
-  postgres-data:
-  redis-data:
-  rabbitmq-data:
-  minio-data:
-  mailpit-data:
+  aller-meal-postgres-data:
+  aller-meal-redis-data:
+  aller-meal-rabbitmq-data:
+  aller-meal-minio-data:
+  aller-meal-mailpit-data:

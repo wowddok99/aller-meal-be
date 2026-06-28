@@ -5,12 +5,12 @@
 
 ## 구성
 
-- `safe-meal-api`: HTTP API 애플리케이션
-- `safe-meal-batch`: 스케줄 및 배치 애플리케이션
-- `safe-meal-worker`: 비동기 Worker 애플리케이션
-- `safe-meal-domain`: 프레임워크 독립 도메인
-- `safe-meal-application`: 유스케이스 및 포트
-- `safe-meal-infra`: PostgreSQL, RabbitMQ 등 외부 시스템 어댑터
+- `aller-meal-api`: HTTP API 애플리케이션
+- `aller-meal-batch`: 스케줄 및 배치 애플리케이션
+- `aller-meal-worker`: 비동기 Worker 애플리케이션
+- `aller-meal-domain`: 프레임워크 독립 도메인
+- `aller-meal-application`: 유스케이스 및 포트
+- `aller-meal-infra`: PostgreSQL, RabbitMQ 등 외부 시스템 어댑터
 
 ## 요구사항
 

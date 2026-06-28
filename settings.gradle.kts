@@ -1,10 +1,10 @@
 rootProject.name = "aller-meal"
 
 include(
-	"safe-meal-api",
-	"safe-meal-application",
-	"safe-meal-domain",
-	"safe-meal-infra",
-	"safe-meal-batch",
-	"safe-meal-worker",
+	"aller-meal-api",
+	"aller-meal-application",
+	"aller-meal-domain",
+	"aller-meal-infra",
+	"aller-meal-batch",
+	"aller-meal-worker",
 )

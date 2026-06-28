@@ -1,0 +1,71 @@
+spring:
+  application:
+    name: aller-meal-batch
+  datasource:
+    url: "${DATABASE_URL:jdbc:postgresql://localhost:5432/${POSTGRES_DB:aller_meal}}"
+    username: "${POSTGRES_USER:aller_meal}"
+    password: "${POSTGRES_PASSWORD:local-postgres-password}"
+  rabbitmq:
+    host: "${RABBITMQ_HOST:localhost}"
+    port: "${RABBITMQ_PORT:5672}"
+    username: "${RABBITMQ_DEFAULT_USER:aller_meal}"
+    password: "${RABBITMQ_DEFAULT_PASS:local-rabbitmq-password}"
+    publisher-confirm-type: correlated
+    publisher-returns: true
+
+aller-meal:
+  neis:
+    base-url: "${NEIS_BASE_URL:https://open.neis.go.kr/hub}"
+    api-key: "${NEIS_API_KEY:}"
+    meal:
+      request-timeout: 5s
+      max-payload-bytes: 1048576
+      lease-duration: 2m
+      max-attempts: 3
+      initial-backoff: 200ms
+      backoff-multiplier: 2.0
+      circuit-breaker:
+        failure-rate-threshold: 50
+        sliding-window-size: 10
+        minimum-calls: 5
+        open-duration: 30s
+  outbox:
+    publisher:
+      enabled: true
+      batch-size: 100
+      fixed-delay: 1000
+  consumer:
+    enabled: false
+  rabbitmq:
+    publisher-confirm-timeout: 5s
+    events:
+      exchange: aller-meal.events
+      queue: aller-meal.events.worker
+      routing-key: aller-meal.events
+    retry:
+      exchange: aller-meal.events.retry
+      queue: aller-meal.events.retry.worker
+      routing-key: aller-meal.events.retry
+      delay: 1000
+    dead-letter:
+      exchange: aller-meal.events.dlx
+      queue: aller-meal.events.dlq
+      routing-key: aller-meal.events.dead
+    max-retries: 3
+  collection:
+    run-once:
+      enabled: false
+    scheduler:
+      enabled: "${SCHOOL_COLLECTION_SCHEDULER_ENABLED:true}"
+      fixed-delay: "${SCHOOL_COLLECTION_SCHEDULER_FIXED_DELAY:PT1H}"
+      days-ahead: "${SCHOOL_COLLECTION_SCHEDULER_DAYS_AHEAD:7}"
+  notification-target:
+    scheduler:
+      enabled: "${NOTIFICATION_TARGET_SCHEDULER_ENABLED:true}"
+      fixed-delay: "${NOTIFICATION_TARGET_SCHEDULER_FIXED_DELAY:PT1M}"
+      lookback: "${NOTIFICATION_TARGET_SCHEDULER_LOOKBACK:PT5M}"
+  notification-request:
+    scheduler:
+      enabled: "${NOTIFICATION_REQUEST_SCHEDULER_ENABLED:true}"
+      fixed-delay: "${NOTIFICATION_REQUEST_SCHEDULER_FIXED_DELAY:PT1M}"
+      limit: "${NOTIFICATION_REQUEST_SCHEDULER_LIMIT:100}"
