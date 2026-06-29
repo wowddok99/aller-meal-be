@@ -1,6 +1,9 @@
 package com.allermeal.api.error;
 
 import com.allermeal.application.admin.AdminAuthorizationException;
+import com.allermeal.application.admin.AdminCollectionJobNotFoundException;
+import com.allermeal.application.admin.AdminInvalidCollectionRequestException;
+import com.allermeal.application.admin.AdminRecollectionConflictException;
 import com.allermeal.application.admin.InvalidAdminUserRoleChangeException;
 import com.allermeal.application.admin.AdminUserNotFoundException;
 import com.allermeal.api.error.response.ApiError;
@@ -162,6 +165,22 @@ public final class ApiExceptionHandler {
 	ResponseEntity<ApiErrorResponse> handleInvalidAdminUserRoleChange(HttpServletRequest request) {
 		return response(HttpStatus.CONFLICT, "INVALID_ADMIN_ROLE_CHANGE",
 			"관리자 권한으로 변경할 수 없는 사용자입니다.", request);
+	}
+
+	@ExceptionHandler(AdminInvalidCollectionRequestException.class)
+	ResponseEntity<ApiErrorResponse> handleAdminInvalidCollectionRequest(HttpServletRequest request) {
+		return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "요청 값이 올바르지 않습니다.", request);
+	}
+
+	@ExceptionHandler(AdminCollectionJobNotFoundException.class)
+	ResponseEntity<ApiErrorResponse> handleAdminCollectionJobNotFound(HttpServletRequest request) {
+		return response(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "요청한 수집 작업을 찾을 수 없습니다.", request);
+	}
+
+	@ExceptionHandler(AdminRecollectionConflictException.class)
+	ResponseEntity<ApiErrorResponse> handleAdminRecollectionConflict(HttpServletRequest request) {
+		return response(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_CONFLICT",
+			"Idempotency-Key가 다른 재수집 요청에 이미 사용되었습니다.", request);
 	}
 
 	@ExceptionHandler(NeisApiException.class)

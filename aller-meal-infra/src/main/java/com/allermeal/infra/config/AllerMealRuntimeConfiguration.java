@@ -1,5 +1,6 @@
 package com.allermeal.infra.config;
 
+import com.allermeal.application.admin.AdminCollectionFailureService;
 import com.allermeal.application.admin.AdminBootstrapProperties;
 import com.allermeal.application.admin.AdminBootstrapService;
 import com.allermeal.application.admin.AdminUserService;
@@ -16,6 +17,7 @@ import com.allermeal.application.meal.PersonalizedMealQueryService;
 import com.allermeal.application.meal.PublicMealQueryService;
 import com.allermeal.application.port.out.AdminAuditLogRepository;
 import com.allermeal.application.port.out.AdminBootstrapLockRepository;
+import com.allermeal.application.port.out.AdminRecollectionRequestRepository;
 import com.allermeal.application.port.out.AllergenRepository;
 import com.allermeal.application.port.out.ChildAllergenRepository;
 import com.allermeal.application.outbox.OutboxPublisher;
@@ -27,6 +29,7 @@ import com.allermeal.application.port.out.EventPublisher;
 import com.allermeal.application.port.out.EmailDecryptor;
 import com.allermeal.application.port.out.EmailEncryptor;
 import com.allermeal.application.port.out.EmailSearchHasher;
+import com.allermeal.application.port.out.ExternalApiLogRepository;
 import com.allermeal.application.port.out.MealCollectionDispatcher;
 import com.allermeal.application.port.out.MealRepository;
 import com.allermeal.application.port.out.NotificationMailSender;
@@ -97,6 +100,20 @@ public class AllerMealRuntimeConfiguration {
 		Clock clock
 	) {
 		return new AdminUserService(userRepository, auditLogRepository, clock);
+	}
+
+	@Bean
+	AdminCollectionFailureService adminCollectionFailureService(
+		CollectionJobRepository collectionJobRepository,
+		ExternalApiLogRepository externalApiLogRepository,
+		AdminRecollectionRequestRepository recollectionRequestRepository,
+		MealCollectionDispatcher collectionDispatcher,
+		AdminAuditLogRepository auditLogRepository,
+		Clock clock
+	) {
+		return new AdminCollectionFailureService(
+			collectionJobRepository, externalApiLogRepository, recollectionRequestRepository,
+			collectionDispatcher, auditLogRepository, clock);
 	}
 
 	@Bean

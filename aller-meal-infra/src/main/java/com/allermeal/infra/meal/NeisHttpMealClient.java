@@ -1,18 +1,21 @@
 package com.allermeal.infra.meal;
 
 import com.allermeal.application.meal.MealCollectionException;
+import com.allermeal.application.port.out.ExternalApiLogRepository;
 import com.allermeal.application.port.out.NeisMealClient;
+import com.allermeal.application.port.out.command.ExternalApiLogCommand;
 import com.allermeal.application.port.out.result.RawMealResponse;
 import com.allermeal.domain.meal.MealType;
 import com.allermeal.domain.school.School;
+import com.allermeal.domain.school.SchoolId;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.core.IntervalFunction;
 import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryConfig;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -23,9 +26,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -39,6 +43,7 @@ public class NeisHttpMealClient implements NeisMealClient {
 
 	private final HttpClient httpClient;
 	private final Clock clock;
+	private final ExternalApiLogRepository externalApiLogRepository;
 	private final String baseUrl;
 	private final String apiKey;
 	private final Duration requestTimeout;
@@ -48,6 +53,7 @@ public class NeisHttpMealClient implements NeisMealClient {
 
 	public NeisHttpMealClient(
 		Clock clock,
+		ExternalApiLogRepository externalApiLogRepository,
 		@Value("${aller-meal.neis.base-url:https://open.neis.go.kr/hub}") String baseUrl,
 		@Value("${aller-meal.neis.api-key:}") String apiKey,
 		@Value("${aller-meal.neis.meal.request-timeout:5s}") Duration requestTimeout,
@@ -62,11 +68,12 @@ public class NeisHttpMealClient implements NeisMealClient {
 	) {
 		this.httpClient = HttpClient.newBuilder().connectTimeout(requestTimeout).build();
 		this.clock = clock;
+		this.externalApiLogRepository = externalApiLogRepository;
 		this.baseUrl = baseUrl;
 		this.apiKey = apiKey;
 		this.requestTimeout = requestTimeout;
 		if (maxPayloadBytes < 1) {
-			throw new IllegalArgumentException("NEIS ±Ş½Ä ÃÖ´ë payload Å©±â´Â 1 ÀÌ»óÀÌ¾î¾ß ÇÕ´Ï´Ù.");
+			throw new IllegalArgumentException("NEIS ê¸‰ì‹ ìµœëŒ€ payload í¬ê¸°ëŠ” 1 ì´ìƒì´ì–´ì•¼ í•©ë‹ˆë‹¤.");
 		}
 		this.maxPayloadBytes = maxPayloadBytes;
 		this.retry = Retry.of("neisMeal", RetryConfig.custom()
@@ -84,13 +91,15 @@ public class NeisHttpMealClient implements NeisMealClient {
 
 	@Override
 	public RawMealResponse fetch(School school, LocalDate mealDate, MealType mealType) {
+		ExternalApiTarget target = new ExternalApiTarget(school.id(), mealDate, mealType);
 		HttpRequest request = HttpRequest.newBuilder(buildUri(school, mealDate, mealType))
 			.timeout(requestTimeout)
 			.GET()
 			.build();
-		Supplier<RawMealResponse> retriedCall = Retry.decorateSupplier(retry, () -> execute(request));
+		Supplier<RawMealResponse> retriedCall = Retry.decorateSupplier(retry, () -> execute(request, target));
 		if (!circuitBreaker.tryAcquirePermission()) {
-			throw new MealCollectionException("NEIS_CIRCUIT_OPEN", "NEIS ±Ş½Ä È£Ãâ circuit breaker°¡ ¿­·Á ÀÖ½À´Ï´Ù.");
+			saveLog(target, null, "FAILED", "NEIS_CIRCUIT_OPEN", 0);
+			throw new MealCollectionException("NEIS_CIRCUIT_OPEN", "NEIS ê¸‰ì‹ í˜¸ì¶œ circuit breakerê°€ ì—´ë ¤ ìˆìŠµë‹ˆë‹¤.");
 		}
 		long startedNanos = System.nanoTime();
 		try {
@@ -116,24 +125,68 @@ public class NeisHttpMealClient implements NeisMealClient {
 		circuitBreaker.onError(0, TimeUnit.NANOSECONDS, exception);
 	}
 
-	private RawMealResponse execute(HttpRequest request) {
+	private RawMealResponse execute(HttpRequest request, ExternalApiTarget target) {
 		long startedNanos = System.nanoTime();
 		try {
 			HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
 			if (response.statusCode() < 200 || response.statusCode() >= 300) {
+				long elapsedMillis = elapsedMillis(startedNanos);
 				closeQuietly(response.body());
 				applyRetryAfter(response);
+				saveLog(target, response.statusCode(), "FAILED", httpFailureCode(response.statusCode()), elapsedMillis);
 				throw new MealCollectionException(
-					httpFailureCode(response.statusCode()), "NEIS ±Ş½Ä È£ÃâÀÌ ½ÇÆĞÇß½À´Ï´Ù.");
+					httpFailureCode(response.statusCode()), "NEIS ê¸‰ì‹ í˜¸ì¶œì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤.");
 			}
-			return new RawMealResponse(readLimited(response.body()), clock.instant(), elapsedMillis(startedNanos));
+			try {
+				byte[] body = readLimited(response.body());
+				long elapsedMillis = elapsedMillis(startedNanos);
+				saveLog(target, response.statusCode(), "SUCCEEDED", null, elapsedMillis);
+				return new RawMealResponse(body, clock.instant(), elapsedMillis);
+			} catch (MealCollectionException exception) {
+				long elapsedMillis = elapsedMillis(startedNanos);
+				saveLog(target, response.statusCode(), "FAILED", exception.code(), elapsedMillis);
+				throw exception;
+			} catch (IOException exception) {
+				saveLog(target, response.statusCode(), "FAILED", "NEIS_IO_ERROR", elapsedMillis(startedNanos));
+				throw new MealCollectionException("NEIS_IO_ERROR", "NEIS ê¸‰ì‹ í˜¸ì¶œì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤.", exception);
+			}
 		} catch (HttpTimeoutException exception) {
-			throw new MealCollectionException("NEIS_TIMEOUT", "NEIS ±Ş½Ä È£Ãâ ½Ã°£ÀÌ ÃÊ°úµÇ¾ú½À´Ï´Ù.", exception);
+			saveLog(target, null, "FAILED", "NEIS_TIMEOUT", elapsedMillis(startedNanos));
+			throw new MealCollectionException("NEIS_TIMEOUT", "NEIS ê¸‰ì‹ í˜¸ì¶œ ì‹œê°„ì´ ì´ˆê³¼ë˜ì—ˆìŠµë‹ˆë‹¤.", exception);
 		} catch (InterruptedException exception) {
 			Thread.currentThread().interrupt();
-			throw new MealCollectionException("NEIS_INTERRUPTED", "NEIS ±Ş½Ä È£ÃâÀÌ Áß´ÜµÇ¾ú½À´Ï´Ù.", exception);
+			saveLog(target, null, "FAILED", "NEIS_INTERRUPTED", elapsedMillis(startedNanos));
+			throw new MealCollectionException("NEIS_INTERRUPTED", "NEIS ê¸‰ì‹ í˜¸ì¶œì´ ì¤‘ë‹¨ë˜ì—ˆìŠµë‹ˆë‹¤.", exception);
 		} catch (IOException exception) {
-			throw new MealCollectionException("NEIS_IO_ERROR", "NEIS ±Ş½Ä È£Ãâ¿¡ ½ÇÆĞÇß½À´Ï´Ù.", exception);
+			saveLog(target, null, "FAILED", "NEIS_IO_ERROR", elapsedMillis(startedNanos));
+			throw new MealCollectionException("NEIS_IO_ERROR", "NEIS ê¸‰ì‹ í˜¸ì¶œì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤.", exception);
+		}
+	}
+
+	private void saveLog(
+		ExternalApiTarget target,
+		Integer httpStatus,
+		String outcome,
+		String failureCode,
+		long responseTimeMillis
+	) {
+		try {
+			externalApiLogRepository.save(new ExternalApiLogCommand(
+				UUID.randomUUID(),
+				"NEIS",
+				"MEAL_SERVICE_DIET_INFO",
+				target.schoolId(),
+				target.mealDate(),
+				target.mealType(),
+				"GET",
+				baseUrl + "/mealServiceDietInfo",
+				httpStatus,
+				outcome,
+				failureCode,
+				responseTimeMillis,
+				clock.instant()));
+		} catch (RuntimeException ignored) {
+			// ì™¸ë¶€ API ë¡œê·¸ ì €ì¥ ì‹¤íŒ¨ê°€ ìˆ˜ì§‘ ë³¸ íë¦„ì„ ë§‰ì§€ ì•ŠëŠ”ë‹¤.
 		}
 	}
 
@@ -145,7 +198,7 @@ public class NeisHttpMealClient implements NeisMealClient {
 			while ((read = inputStream.read(buffer)) != -1) {
 				total += read;
 				if (total > maxPayloadBytes) {
-					throw new MealCollectionException("NEIS_PAYLOAD_TOO_LARGE", "NEIS ±Ş½Ä ÀÀ´ä Å©±â°¡ Á¦ÇÑÀ» ÃÊ°úÇß½À´Ï´Ù.");
+					throw new MealCollectionException("NEIS_PAYLOAD_TOO_LARGE", "NEIS ê¸‰ì‹ ì‘ë‹µ í¬ê¸°ê°€ ì œí•œì„ ì´ˆê³¼í–ˆìŠµë‹ˆë‹¤.");
 				}
 				output.write(buffer, 0, read);
 			}
@@ -163,7 +216,7 @@ public class NeisHttpMealClient implements NeisMealClient {
 			Thread.sleep(Math.min(baseMillis + jitterMillis, requestTimeout.toMillis()));
 		} catch (InterruptedException exception) {
 			Thread.currentThread().interrupt();
-			throw new MealCollectionException("NEIS_INTERRUPTED", "NEIS ±Ş½Ä retry ´ë±â°¡ Áß´ÜµÇ¾ú½À´Ï´Ù.", exception);
+			throw new MealCollectionException("NEIS_INTERRUPTED", "NEIS ê¸‰ì‹ retry ëŒ€ê¸°ê°€ ì¤‘ë‹¨ë˜ì—ˆìŠµë‹ˆë‹¤.", exception);
 		}
 	}
 
@@ -197,7 +250,7 @@ public class NeisHttpMealClient implements NeisMealClient {
 		try {
 			inputStream.close();
 		} catch (IOException ignored) {
-			// ÀÀ´ä ½ÇÆĞ¸¦ ¿ì¼± º¸Á¸ÇÑ´Ù.
+			// ë³¸ ì‹¤íŒ¨ë¥¼ ìš°ì„  ë°˜í™˜í•œë‹¤.
 		}
 	}
 
@@ -230,5 +283,12 @@ public class NeisHttpMealClient implements NeisMealClient {
 
 	private String encode(String value) {
 		return URLEncoder.encode(value, StandardCharsets.UTF_8);
+	}
+
+	private record ExternalApiTarget(
+		SchoolId schoolId,
+		LocalDate mealDate,
+		MealType mealType
+	) {
 	}
 }
