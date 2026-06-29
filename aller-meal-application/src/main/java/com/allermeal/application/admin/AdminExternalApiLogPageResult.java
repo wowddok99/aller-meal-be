@@ -6,6 +6,6 @@ public record AdminExternalApiLogPageResult(
 	List<AdminExternalApiLogItemResult> items,
 	int page,
 	int pageSize,
-	int totalCount
+	long totalCount
 ) {
 }

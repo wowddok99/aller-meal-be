@@ -6,6 +6,6 @@ public record AdminFailedCollectionJobPageResult(
 	List<AdminFailedCollectionJobItemResult> items,
 	int page,
 	int pageSize,
-	int totalCount
+	long totalCount
 ) {
 }

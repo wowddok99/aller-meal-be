@@ -7,7 +7,7 @@ public record AdminExternalApiLogPageResponse(
 	List<AdminExternalApiLogItemResponse> items,
 	int page,
 	int pageSize,
-	int totalCount
+	long totalCount
 ) {
 
 	public static AdminExternalApiLogPageResponse from(AdminExternalApiLogPageResult result) {

@@ -140,7 +140,7 @@ public class JdbcCollectionJobRepository implements CollectionJobRepository {
 			.param("offset", offset)
 			.query(this::mapFailedItem)
 			.list();
-		return new AdminFailedCollectionJobPageResult(items, page, pageSize, Math.toIntExact(totalCount));
+		return new AdminFailedCollectionJobPageResult(items, page, pageSize, totalCount);
 	}
 
 	private Map<String, Object> parameters(CollectionJob job) {

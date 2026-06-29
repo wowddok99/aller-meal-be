@@ -7,7 +7,7 @@ public record AdminFailedCollectionJobPageResponse(
 	List<AdminFailedCollectionJobItemResponse> items,
 	int page,
 	int pageSize,
-	int totalCount
+	long totalCount
 ) {
 
 	public static AdminFailedCollectionJobPageResponse from(AdminFailedCollectionJobPageResult result) {

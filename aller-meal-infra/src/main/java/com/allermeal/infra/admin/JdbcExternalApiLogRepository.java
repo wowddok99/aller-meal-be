@@ -68,7 +68,7 @@ public class JdbcExternalApiLogRepository implements ExternalApiLogRepository {
 			.param("offset", offset)
 			.query(this::mapItem)
 			.list();
-		return new AdminExternalApiLogPageResult(items, page, pageSize, Math.toIntExact(totalCount));
+		return new AdminExternalApiLogPageResult(items, page, pageSize, totalCount);
 	}
 
 	private AdminExternalApiLogItemResult mapItem(ResultSet resultSet, int rowNum) throws SQLException {
