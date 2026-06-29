@@ -8,6 +8,7 @@ import com.allermeal.domain.user.EncryptedEmail;
 import com.allermeal.domain.user.PasswordHash;
 import com.allermeal.domain.user.User;
 import com.allermeal.domain.user.UserId;
+import com.allermeal.domain.user.UserRole;
 import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
@@ -43,6 +44,11 @@ public class JpaUserRepository implements UserRepository {
 	@Override
 	public boolean existsByEmailSearchHash(EmailSearchHash emailSearchHash) {
 		return repository.existsByEmailSearchHash(emailSearchHash.value());
+	}
+
+	@Override
+	public boolean existsByRole(UserRole role) {
+		return repository.existsByRole(role);
 	}
 
 	private UserJpaEntity toEntity(User user) {

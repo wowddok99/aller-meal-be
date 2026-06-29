@@ -1,5 +1,8 @@
 package com.allermeal.infra.config;
 
+import com.allermeal.application.admin.AdminBootstrapProperties;
+import com.allermeal.application.admin.AdminBootstrapService;
+import com.allermeal.application.admin.AdminUserService;
 import com.allermeal.application.consumer.IdempotentEventConsumer;
 import com.allermeal.application.child.ChildProfileService;
 import com.allermeal.application.child.ChildAllergenService;
@@ -11,6 +14,8 @@ import com.allermeal.application.notification.NotificationHistoryService;
 import com.allermeal.application.notification.NotificationRequestCreationService;
 import com.allermeal.application.meal.PersonalizedMealQueryService;
 import com.allermeal.application.meal.PublicMealQueryService;
+import com.allermeal.application.port.out.AdminAuditLogRepository;
+import com.allermeal.application.port.out.AdminBootstrapLockRepository;
 import com.allermeal.application.port.out.AllergenRepository;
 import com.allermeal.application.port.out.ChildAllergenRepository;
 import com.allermeal.application.outbox.OutboxPublisher;
@@ -20,11 +25,14 @@ import com.allermeal.application.port.out.ChildNotificationPreferenceRepository;
 import com.allermeal.application.port.out.CollectionJobRepository;
 import com.allermeal.application.port.out.EventPublisher;
 import com.allermeal.application.port.out.EmailDecryptor;
+import com.allermeal.application.port.out.EmailEncryptor;
+import com.allermeal.application.port.out.EmailSearchHasher;
 import com.allermeal.application.port.out.MealCollectionDispatcher;
 import com.allermeal.application.port.out.MealRepository;
 import com.allermeal.application.port.out.NotificationMailSender;
 import com.allermeal.application.port.out.NotificationRequestRepository;
 import com.allermeal.application.port.out.OutboxEventRepository;
+import com.allermeal.application.port.out.PasswordHasher;
 import com.allermeal.application.port.out.PublicMealQueryCache;
 import com.allermeal.application.port.out.SchoolRepository;
 import com.allermeal.application.port.out.SchoolCollectionSubscriptionRepository;
@@ -56,6 +64,39 @@ public class AllerMealRuntimeConfiguration {
 	@Bean
 	ObjectMapper objectMapper() {
 		return new ObjectMapper();
+	}
+
+	@Bean
+	AdminBootstrapProperties adminBootstrapProperties(
+		@Value("${aller-meal.admin.bootstrap.email:}") String email,
+		@Value("${aller-meal.admin.bootstrap.password:}") String password
+	) {
+		return new AdminBootstrapProperties(email, password);
+	}
+
+	@Bean
+	AdminBootstrapService adminBootstrapService(
+		UserRepository userRepository,
+		AdminBootstrapLockRepository bootstrapLockRepository,
+		EmailEncryptor emailEncryptor,
+		EmailSearchHasher emailSearchHasher,
+		PasswordHasher passwordHasher,
+		AdminAuditLogRepository auditLogRepository,
+		AdminBootstrapProperties properties,
+		Clock clock
+	) {
+		return new AdminBootstrapService(
+			userRepository, bootstrapLockRepository, emailEncryptor, emailSearchHasher, passwordHasher,
+			auditLogRepository, properties, clock);
+	}
+
+	@Bean
+	AdminUserService adminUserService(
+		UserRepository userRepository,
+		AdminAuditLogRepository auditLogRepository,
+		Clock clock
+	) {
+		return new AdminUserService(userRepository, auditLogRepository, clock);
 	}
 
 	@Bean

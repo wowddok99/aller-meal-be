@@ -66,7 +66,7 @@ public final class EmailVerificationRequester {
 		mailSender.send(new EmailVerificationMailCommand(normalizedEmail, token));
 	}
 
-	static String normalizeEmail(String email) {
+	public static String normalizeEmail(String email) {
 		if (email == null) {
 			throw new InvalidSignupRequestException("이메일은 필수입니다.");
 		}
