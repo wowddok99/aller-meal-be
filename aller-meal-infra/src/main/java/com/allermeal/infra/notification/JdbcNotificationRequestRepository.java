@@ -1,8 +1,10 @@
 package com.allermeal.infra.notification;
 
-import com.allermeal.application.port.out.NotificationRequestRepository;
+import com.allermeal.application.admin.AdminFailedNotificationItemResult;
+import com.allermeal.application.admin.AdminFailedNotificationPageResult;
 import com.allermeal.application.notification.NotificationHistoryItemResult;
 import com.allermeal.application.notification.NotificationHistoryResult;
+import com.allermeal.application.port.out.NotificationRequestRepository;
 import com.allermeal.application.port.out.result.NotificationRequestSaveResult;
 import com.allermeal.application.port.out.result.PendingNotificationTargetResult;
 import com.allermeal.domain.child.ChildProfileId;
@@ -173,6 +175,32 @@ public class JdbcNotificationRequestRepository implements NotificationRequestRep
 		return new NotificationHistoryResult(notifications, page, pageSize, Math.toIntExact(totalCount));
 	}
 
+	@Override
+	public AdminFailedNotificationPageResult findFailed(int page, int pageSize) {
+		int offset = offset(page, pageSize);
+		long totalCount = jdbcClient.sql("""
+				SELECT count(*)
+				FROM notification_requests
+				WHERE status = 'FAILED'
+				""")
+			.query(Long.class)
+			.single();
+		List<AdminFailedNotificationItemResult> notifications = jdbcClient.sql("""
+				SELECT notification_id, notification_target_id, child_id, user_id, notification_date,
+				       channel, reason, status, attempt_count, max_attempts, failure_code,
+				       failure_message, created_at, updated_at
+				FROM notification_requests
+				WHERE status = 'FAILED'
+				ORDER BY updated_at DESC, notification_id DESC
+				LIMIT :limit OFFSET :offset
+				""")
+			.param("limit", pageSize)
+			.param("offset", offset)
+			.query(this::mapFailedNotification)
+			.list();
+		return new AdminFailedNotificationPageResult(notifications, page, pageSize, totalCount);
+	}
+
 	private int offset(int page, int pageSize) {
 		try {
 			return Math.multiplyExact(page - 1, pageSize);
@@ -321,6 +349,24 @@ public class JdbcNotificationRequestRepository implements NotificationRequestRep
 			resultSet.getInt("attempt_count"),
 			sentAt == null ? null : sentAt.toInstant(),
 			resultSet.getString("failure_code"),
+			resultSet.getObject("created_at", OffsetDateTime.class).toInstant(),
+			resultSet.getObject("updated_at", OffsetDateTime.class).toInstant());
+	}
+
+	private AdminFailedNotificationItemResult mapFailedNotification(ResultSet resultSet, int rowNum) throws SQLException {
+		return new AdminFailedNotificationItemResult(
+			new NotificationId(resultSet.getObject("notification_id", UUID.class)),
+			resultSet.getObject("notification_target_id", UUID.class),
+			new ChildProfileId(resultSet.getObject("child_id", UUID.class)),
+			new UserId(resultSet.getObject("user_id", UUID.class)),
+			resultSet.getObject("notification_date", java.time.LocalDate.class),
+			NotificationChannel.valueOf(resultSet.getString("channel")),
+			NotificationReason.valueOf(resultSet.getString("reason")),
+			NotificationStatus.valueOf(resultSet.getString("status")),
+			resultSet.getInt("attempt_count"),
+			resultSet.getInt("max_attempts"),
+			resultSet.getString("failure_code"),
+			resultSet.getString("failure_message"),
 			resultSet.getObject("created_at", OffsetDateTime.class).toInstant(),
 			resultSet.getObject("updated_at", OffsetDateTime.class).toInstant());
 	}

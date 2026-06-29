@@ -1,5 +1,9 @@
 package com.allermeal.infra.consumer;
 
+import com.allermeal.application.port.out.DeadLetterEventRepository;
+import com.allermeal.application.port.out.command.DeadLetterEventCommand;
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -7,10 +11,13 @@ import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageBuilder;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class RabbitMqRetryRouter {
 
 	public static final String RETRY_COUNT_HEADER = "x-aller-meal-retry-count";
+	private static final Logger log = LoggerFactory.getLogger(RabbitMqRetryRouter.class);
 
 	private final RabbitTemplate rabbitTemplate;
 	private final String retryExchange;
@@ -19,6 +26,8 @@ public class RabbitMqRetryRouter {
 	private final String deadLetterRoutingKey;
 	private final int maxRetries;
 	private final Duration confirmTimeout;
+	private final DeadLetterEventRepository deadLetterEventRepository;
+	private final Clock clock;
 
 	public RabbitMqRetryRouter(
 		RabbitTemplate rabbitTemplate,
@@ -27,10 +36,12 @@ public class RabbitMqRetryRouter {
 		String deadLetterExchange,
 		String deadLetterRoutingKey,
 		int maxRetries,
-		Duration confirmTimeout
+		Duration confirmTimeout,
+		DeadLetterEventRepository deadLetterEventRepository,
+		Clock clock
 	) {
 		if (maxRetries < 0) {
-			throw new IllegalArgumentException("maxRetries´Â À½¼öÀÏ ¼ö ¾ø½À´Ï´Ù.");
+			throw new IllegalArgumentException("maxRetriesëŠ” ìŒìˆ˜ì¼ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.");
 		}
 		this.rabbitTemplate = rabbitTemplate;
 		this.retryExchange = retryExchange;
@@ -39,6 +50,8 @@ public class RabbitMqRetryRouter {
 		this.deadLetterRoutingKey = deadLetterRoutingKey;
 		this.maxRetries = maxRetries;
 		this.confirmTimeout = confirmTimeout;
+		this.deadLetterEventRepository = deadLetterEventRepository;
+		this.clock = clock;
 	}
 
 	public void process(Message message, Runnable processing) {
@@ -46,12 +59,12 @@ public class RabbitMqRetryRouter {
 			processing.run();
 		} catch (RuntimeException exception) {
 			if (exception instanceof DeadLetterRoutingException) {
-				sendConfirmed(deadLetterExchange, deadLetterRoutingKey, message);
+				sendDeadLetter(message);
 				return;
 			}
 			int retryCount = retryCount(message);
 			if (retryCount >= maxRetries) {
-				sendConfirmed(deadLetterExchange, deadLetterRoutingKey, message);
+				sendDeadLetter(message);
 				return;
 			}
 			Message retryMessage = MessageBuilder.fromMessage(message)
@@ -68,13 +81,31 @@ public class RabbitMqRetryRouter {
 			CorrelationData.Confirm confirm = correlation.getFuture()
 				.get(confirmTimeout.toMillis(), TimeUnit.MILLISECONDS);
 			if (!confirm.ack() || correlation.getReturned() != null) {
-				throw new IllegalStateException("RabbitMQ°¡ retry/DLQ Àü¼ÛÀ» È®ÀÎÇÏÁö ¾Ê¾Ò½À´Ï´Ù.");
+				throw new IllegalStateException("RabbitMQê°€ retry/DLQ ì „ì†¡ì„ í™•ì¸í•˜ì§€ ì•Šì•˜ìŠµë‹ˆë‹¤.");
 			}
 		} catch (InterruptedException exception) {
 			Thread.currentThread().interrupt();
-			throw new IllegalStateException("RabbitMQ retry/DLQ Àü¼Û È®ÀÎ ´ë±â°¡ Áß´ÜµÇ¾ú½À´Ï´Ù.", exception);
+			throw new IllegalStateException("RabbitMQ retry/DLQ ì „ì†¡ í™•ì¸ ëŒ€ê¸°ê°€ ì¤‘ë‹¨ë˜ì—ˆìŠµë‹ˆë‹¤.", exception);
 		} catch (Exception exception) {
-			throw new IllegalStateException("RabbitMQ retry/DLQ Àü¼Û È®ÀÎ¿¡ ½ÇÆĞÇß½À´Ï´Ù.", exception);
+			throw new IllegalStateException("RabbitMQ retry/DLQ ì „ì†¡ í™•ì¸ì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤.", exception);
+		}
+	}
+
+	private void sendDeadLetter(Message message) {
+		sendConfirmed(deadLetterExchange, deadLetterRoutingKey, message);
+		try {
+			deadLetterEventRepository.save(new DeadLetterEventCommand(
+				UUID.randomUUID(),
+				message.getMessageProperties().getMessageId(),
+				message.getMessageProperties().getType(),
+				new String(message.getBody(), StandardCharsets.UTF_8),
+				retryCount(message),
+				clock.instant()));
+		} catch (RuntimeException exception) {
+			log.error("DLQ ì´ë²¤íŠ¸ snapshot ì €ì¥ì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤. messageId={}, eventType={}",
+				message.getMessageProperties().getMessageId(),
+				message.getMessageProperties().getType(),
+				exception);
 		}
 	}
 

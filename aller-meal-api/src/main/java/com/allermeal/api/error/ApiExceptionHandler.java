@@ -3,6 +3,9 @@ package com.allermeal.api.error;
 import com.allermeal.application.admin.AdminAuthorizationException;
 import com.allermeal.application.admin.AdminCollectionJobNotFoundException;
 import com.allermeal.application.admin.AdminInvalidCollectionRequestException;
+import com.allermeal.application.admin.AdminInvalidNotificationFailureRequestException;
+import com.allermeal.application.admin.AdminNotificationFailureNotFoundException;
+import com.allermeal.application.admin.AdminNotificationReprocessConflictException;
 import com.allermeal.application.admin.AdminRecollectionConflictException;
 import com.allermeal.application.admin.InvalidAdminUserRoleChangeException;
 import com.allermeal.application.admin.AdminUserNotFoundException;
@@ -181,6 +184,22 @@ public final class ApiExceptionHandler {
 	ResponseEntity<ApiErrorResponse> handleAdminRecollectionConflict(HttpServletRequest request) {
 		return response(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_CONFLICT",
 			"Idempotency-Key가 다른 재수집 요청에 이미 사용되었습니다.", request);
+	}
+
+	@ExceptionHandler(AdminInvalidNotificationFailureRequestException.class)
+	ResponseEntity<ApiErrorResponse> handleAdminInvalidNotificationFailureRequest(HttpServletRequest request) {
+		return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "요청 값이 올바르지 않습니다.", request);
+	}
+
+	@ExceptionHandler(AdminNotificationFailureNotFoundException.class)
+	ResponseEntity<ApiErrorResponse> handleAdminNotificationFailureNotFound(HttpServletRequest request) {
+		return response(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "요청한 DLQ 이벤트를 찾을 수 없습니다.", request);
+	}
+
+	@ExceptionHandler(AdminNotificationReprocessConflictException.class)
+	ResponseEntity<ApiErrorResponse> handleAdminNotificationReprocessConflict(HttpServletRequest request) {
+		return response(HttpStatus.CONFLICT, "DLQ_REPROCESS_CONFLICT",
+			"DLQ 재처리 요청이 이미 처리되었거나 충돌했습니다.", request);
 	}
 
 	@ExceptionHandler(NeisApiException.class)

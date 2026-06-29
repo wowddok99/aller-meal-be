@@ -3,6 +3,7 @@ package com.allermeal.infra.config;
 import com.allermeal.application.admin.AdminCollectionFailureService;
 import com.allermeal.application.admin.AdminBootstrapProperties;
 import com.allermeal.application.admin.AdminBootstrapService;
+import com.allermeal.application.admin.AdminNotificationFailureService;
 import com.allermeal.application.admin.AdminUserService;
 import com.allermeal.application.consumer.IdempotentEventConsumer;
 import com.allermeal.application.child.ChildProfileService;
@@ -17,6 +18,7 @@ import com.allermeal.application.meal.PersonalizedMealQueryService;
 import com.allermeal.application.meal.PublicMealQueryService;
 import com.allermeal.application.port.out.AdminAuditLogRepository;
 import com.allermeal.application.port.out.AdminBootstrapLockRepository;
+import com.allermeal.application.port.out.AdminNotificationReprocessRequestRepository;
 import com.allermeal.application.port.out.AdminRecollectionRequestRepository;
 import com.allermeal.application.port.out.AllergenRepository;
 import com.allermeal.application.port.out.ChildAllergenRepository;
@@ -25,6 +27,7 @@ import com.allermeal.application.port.out.ConsumedEventRepository;
 import com.allermeal.application.port.out.ChildProfileRepository;
 import com.allermeal.application.port.out.ChildNotificationPreferenceRepository;
 import com.allermeal.application.port.out.CollectionJobRepository;
+import com.allermeal.application.port.out.DeadLetterEventRepository;
 import com.allermeal.application.port.out.EventPublisher;
 import com.allermeal.application.port.out.EmailDecryptor;
 import com.allermeal.application.port.out.EmailEncryptor;
@@ -114,6 +117,20 @@ public class AllerMealRuntimeConfiguration {
 		return new AdminCollectionFailureService(
 			collectionJobRepository, externalApiLogRepository, recollectionRequestRepository,
 			collectionDispatcher, auditLogRepository, clock);
+	}
+
+	@Bean
+	AdminNotificationFailureService adminNotificationFailureService(
+		NotificationRequestRepository notificationRequestRepository,
+		DeadLetterEventRepository deadLetterEventRepository,
+		AdminNotificationReprocessRequestRepository reprocessRequestRepository,
+		OutboxEventRepository outboxEventRepository,
+		AdminAuditLogRepository auditLogRepository,
+		Clock clock
+	) {
+		return new AdminNotificationFailureService(
+			notificationRequestRepository, deadLetterEventRepository, reprocessRequestRepository,
+			outboxEventRepository, auditLogRepository, clock);
 	}
 
 	@Bean
@@ -239,6 +256,8 @@ public class AllerMealRuntimeConfiguration {
 	@Bean
 	RabbitMqRetryRouter rabbitMqRetryRouter(
 		RabbitTemplate rabbitTemplate,
+		DeadLetterEventRepository deadLetterEventRepository,
+		Clock clock,
 		@Value("${aller-meal.rabbitmq.retry.exchange}") String retryExchange,
 		@Value("${aller-meal.rabbitmq.retry.routing-key}") String retryRoutingKey,
 		@Value("${aller-meal.rabbitmq.dead-letter.exchange}") String deadLetterExchange,
@@ -248,6 +267,6 @@ public class AllerMealRuntimeConfiguration {
 	) {
 		return new RabbitMqRetryRouter(
 			rabbitTemplate, retryExchange, retryRoutingKey, deadLetterExchange, deadLetterRoutingKey, maxRetries,
-			confirmTimeout);
+			confirmTimeout, deadLetterEventRepository, clock);
 	}
 }
