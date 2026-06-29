@@ -1,5 +1,7 @@
 package com.allermeal.infra.collection;
 
+import com.allermeal.application.admin.AdminFailedCollectionJobItemResult;
+import com.allermeal.application.admin.AdminFailedCollectionJobPageResult;
 import com.allermeal.application.port.out.CollectionJobRepository;
 import com.allermeal.application.port.out.ConcurrentStateChangeException;
 import com.allermeal.domain.collection.CollectionJob;
@@ -16,6 +18,7 @@ import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -102,6 +105,44 @@ public class JdbcCollectionJobRepository implements CollectionJobRepository {
 				"수집 작업 상태가 이미 변경되어 저장할 수 없습니다."));
 	}
 
+	@Override
+	public Optional<CollectionJob> findById(CollectionJobId collectionJobId) {
+		return jdbcClient.sql("""
+				SELECT """ + " " + RETURNING_COLUMNS + """
+				FROM collection_jobs
+				WHERE collection_job_id = :collectionJobId
+				""")
+			.param("collectionJobId", collectionJobId.value())
+			.query(this::map)
+			.optional();
+	}
+
+	@Override
+	public AdminFailedCollectionJobPageResult findFailed(int page, int pageSize) {
+		int offset = Math.multiplyExact(page - 1, pageSize);
+		long totalCount = jdbcClient.sql("""
+				SELECT count(*)
+				FROM collection_jobs
+				WHERE status = 'FAILED'
+				""")
+			.query(Long.class)
+			.single();
+		var items = jdbcClient.sql("""
+				SELECT collection_job_id, school_id, meal_date, meal_type, response_time_millis,
+				       collection_duration_millis, raw_object_id, failure_code, failure_message,
+				       created_at, updated_at
+				FROM collection_jobs
+				WHERE status = 'FAILED'
+				ORDER BY updated_at DESC, collection_job_id DESC
+				LIMIT :limit OFFSET :offset
+				""")
+			.param("limit", pageSize)
+			.param("offset", offset)
+			.query(this::mapFailedItem)
+			.list();
+		return new AdminFailedCollectionJobPageResult(items, page, pageSize, totalCount);
+	}
+
 	private Map<String, Object> parameters(CollectionJob job) {
 		Map<String, Object> parameters = new HashMap<>();
 		parameters.put("jobId", job.id().value());
@@ -137,6 +178,21 @@ public class JdbcCollectionJobRepository implements CollectionJobRepository {
 			new EntityTimestamps(
 				resultSet.getObject("created_at", OffsetDateTime.class).toInstant(),
 				resultSet.getObject("updated_at", OffsetDateTime.class).toInstant()));
+	}
+
+	private AdminFailedCollectionJobItemResult mapFailedItem(ResultSet resultSet, int rowNum) throws SQLException {
+		return new AdminFailedCollectionJobItemResult(
+			new CollectionJobId(resultSet.getObject("collection_job_id", UUID.class)),
+			new SchoolId(resultSet.getObject("school_id", UUID.class)),
+			resultSet.getObject("meal_date", LocalDate.class),
+			MealType.valueOf(resultSet.getString("meal_type")),
+			resultSet.getObject("response_time_millis", Long.class),
+			resultSet.getObject("collection_duration_millis", Long.class),
+			resultSet.getObject("raw_object_id", UUID.class),
+			resultSet.getString("failure_code"),
+			resultSet.getString("failure_message"),
+			resultSet.getObject("created_at", OffsetDateTime.class).toInstant(),
+			resultSet.getObject("updated_at", OffsetDateTime.class).toInstant());
 	}
 
 	private java.time.Instant toInstant(OffsetDateTime value) {

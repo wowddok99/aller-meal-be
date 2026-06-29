@@ -5,6 +5,7 @@ import com.allermeal.application.notification.NotificationRequestCreationService
 import com.allermeal.application.port.out.EventPublisher;
 import com.allermeal.application.port.out.NotificationRequestRepository;
 import com.allermeal.application.port.out.OutboxEventRepository;
+import com.allermeal.infra.admin.JdbcExternalApiLogRepository;
 import com.allermeal.infra.collection.JdbcCollectionJobRepository;
 import com.allermeal.infra.config.NotificationTargetConfiguration;
 import com.allermeal.infra.config.MealCollectionConfiguration;
@@ -38,6 +39,7 @@ import tools.jackson.databind.ObjectMapper;
 })
 @SpringBootApplication(scanBasePackageClasses = {
 	AllerMealBatchApplication.class,
+	JdbcExternalApiLogRepository.class,
 	JdbcChildAllergenRepository.class,
 	JdbcCollectionJobRepository.class,
 	NeisHttpMealClient.class,
