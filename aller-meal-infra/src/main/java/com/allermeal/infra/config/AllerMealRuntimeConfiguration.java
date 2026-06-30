@@ -3,6 +3,7 @@ package com.allermeal.infra.config;
 import com.allermeal.application.admin.AdminCollectionFailureService;
 import com.allermeal.application.admin.AdminBootstrapProperties;
 import com.allermeal.application.admin.AdminBootstrapService;
+import com.allermeal.application.admin.AdminDashboardSummaryService;
 import com.allermeal.application.admin.AdminNotificationFailureService;
 import com.allermeal.application.admin.AdminUserService;
 import com.allermeal.application.consumer.IdempotentEventConsumer;
@@ -18,6 +19,7 @@ import com.allermeal.application.meal.PersonalizedMealQueryService;
 import com.allermeal.application.meal.PublicMealQueryService;
 import com.allermeal.application.port.out.AdminAuditLogRepository;
 import com.allermeal.application.port.out.AdminBootstrapLockRepository;
+import com.allermeal.application.port.out.AdminDashboardSummaryRepository;
 import com.allermeal.application.port.out.AdminNotificationReprocessRequestRepository;
 import com.allermeal.application.port.out.AdminRecollectionRequestRepository;
 import com.allermeal.application.port.out.AllergenRepository;
@@ -131,6 +133,14 @@ public class AllerMealRuntimeConfiguration {
 		return new AdminNotificationFailureService(
 			notificationRequestRepository, deadLetterEventRepository, reprocessRequestRepository,
 			outboxEventRepository, auditLogRepository, clock);
+	}
+
+	@Bean
+	AdminDashboardSummaryService adminDashboardSummaryService(
+		AdminDashboardSummaryRepository summaryRepository,
+		Clock clock
+	) {
+		return new AdminDashboardSummaryService(summaryRepository, clock);
 	}
 
 	@Bean
