@@ -1,10 +1,13 @@
 package com.allermeal.batch;
 
+import com.allermeal.application.account.ExpiredAccountPersonalDataCleanupService;
 import com.allermeal.application.outbox.OutboxPublisher;
 import com.allermeal.application.notification.NotificationRequestCreationService;
+import com.allermeal.application.port.out.AccountWithdrawalPrivacyRepository;
 import com.allermeal.application.port.out.EventPublisher;
 import com.allermeal.application.port.out.NotificationRequestRepository;
 import com.allermeal.application.port.out.OutboxEventRepository;
+import com.allermeal.infra.account.JdbcAccountWithdrawalPrivacyRepository;
 import com.allermeal.infra.admin.JdbcExternalApiLogRepository;
 import com.allermeal.infra.collection.JdbcCollectionJobRepository;
 import com.allermeal.infra.config.NotificationTargetConfiguration;
@@ -39,6 +42,7 @@ import tools.jackson.databind.ObjectMapper;
 })
 @SpringBootApplication(scanBasePackageClasses = {
 	AllerMealBatchApplication.class,
+	JdbcAccountWithdrawalPrivacyRepository.class,
 	JdbcExternalApiLogRepository.class,
 	JdbcChildAllergenRepository.class,
 	JdbcCollectionJobRepository.class,
@@ -77,6 +81,14 @@ public class AllerMealBatchApplication {
 		Clock clock
 	) {
 		return new NotificationRequestCreationService(notificationRequestRepository, outboxEventRepository, clock);
+	}
+
+	@Bean
+	ExpiredAccountPersonalDataCleanupService expiredAccountPersonalDataCleanupService(
+		AccountWithdrawalPrivacyRepository privacyRepository,
+		Clock clock
+	) {
+		return new ExpiredAccountPersonalDataCleanupService(privacyRepository, clock);
 	}
 
 	@Bean

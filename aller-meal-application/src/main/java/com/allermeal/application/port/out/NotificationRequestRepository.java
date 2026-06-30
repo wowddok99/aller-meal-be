@@ -20,6 +20,11 @@ public interface NotificationRequestRepository {
 
 	Optional<NotificationRequest> findById(NotificationId notificationId);
 
+	Optional<NotificationRequest> startSendingIfOwnerActive(
+		NotificationStatus expectedStatus,
+		NotificationRequest request
+	);
+
 	NotificationRequest save(NotificationStatus expectedStatus, NotificationRequest request);
 
 	NotificationHistoryResult findHistoryByChild(UserId ownerId, ChildProfileId childProfileId, int page, int pageSize);

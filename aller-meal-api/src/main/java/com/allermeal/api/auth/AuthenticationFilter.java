@@ -62,7 +62,7 @@ public final class AuthenticationFilter extends OncePerRequestFilter {
 			return;
 		}
 		User user = userRepository.findById(claims.userId()).orElse(null);
-		if (user == null || user.status() != UserStatus.ACTIVE) {
+		if (user == null || !isAllowedStatus(request, user.status())) {
 			writeError(response, request, HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
 			return;
 		}
@@ -86,6 +86,15 @@ public final class AuthenticationFilter extends OncePerRequestFilter {
 			|| path.equals("/api/v1/auth/email-verifications/confirm")
 			|| path.equals("/api/v1/auth/password-resets")
 			|| path.equals("/api/v1/auth/password-resets/confirm");
+	}
+
+	private boolean isAllowedStatus(HttpServletRequest request, UserStatus status) {
+		if (status == UserStatus.ACTIVE) {
+			return true;
+		}
+		return status == UserStatus.WITHDRAWAL_PENDING
+			&& request.getMethod().equals("DELETE")
+			&& request.getRequestURI().equals("/api/v1/account/withdrawal");
 	}
 
 	private Optional<String> resolveToken(HttpServletRequest request) {

@@ -46,11 +46,13 @@ public class JdbcNotificationRequestRepository implements NotificationRequestRep
 				SELECT target.notification_target_id, target.child_id, target.user_id, target.notification_date,
 				       target.reason, target.risk_level, target.risk_version, target.meal_count
 				FROM notification_targets target
+				JOIN users account ON account.user_id = target.user_id
 				WHERE NOT EXISTS (
 				    SELECT 1
 				    FROM notification_requests request
 				    WHERE request.notification_target_id = target.notification_target_id
 				)
+				  AND account.status = 'ACTIVE'
 				ORDER BY target.created_at, target.notification_target_id
 				LIMIT :limit
 				""")
@@ -108,6 +110,55 @@ public class JdbcNotificationRequestRepository implements NotificationRequestRep
 				WHERE notification_id = :notificationId
 				""")
 			.param("notificationId", notificationId.value())
+			.query(this::mapRequest)
+			.optional();
+	}
+
+	@Override
+	public Optional<NotificationRequest> startSendingIfOwnerActive(
+		NotificationStatus expectedStatus,
+		NotificationRequest request
+	) {
+		return jdbcClient.sql("""
+				WITH active_account AS (
+				    SELECT user_id
+				    FROM users
+				    WHERE user_id = :userId AND status = 'ACTIVE'
+				    FOR UPDATE
+				),
+				updated AS (
+				    UPDATE notification_requests
+				    SET status = :status,
+				        attempt_count = :attemptCount,
+				        next_attempt_at = :nextAttemptAt,
+				        sent_at = :sentAt,
+				        failure_code = :failureCode,
+				        failure_message = :failureMessage,
+				        updated_at = :updatedAt
+				    WHERE notification_id = :notificationId
+				      AND status = :expectedStatus
+				      AND EXISTS (SELECT 1 FROM active_account)
+				    RETURNING notification_id, notification_target_id, child_id, user_id, notification_date,
+				              channel, reason, dedup_key, correction_key, content_version, is_correction,
+				              supersedes_notification_id, status, attempt_count, max_attempts, next_attempt_at,
+				              sent_at, failure_code, failure_message, created_at, updated_at
+				)
+				SELECT notification_id, notification_target_id, child_id, user_id, notification_date,
+				       channel, reason, dedup_key, correction_key, content_version, is_correction,
+				       supersedes_notification_id, status, attempt_count, max_attempts, next_attempt_at,
+				       sent_at, failure_code, failure_message, created_at, updated_at
+				FROM updated
+				""")
+			.param("status", request.status().name())
+			.param("attemptCount", request.attemptCount())
+			.param("nextAttemptAt", request.nextAttemptAt() == null ? null : Timestamp.from(request.nextAttemptAt()))
+			.param("sentAt", request.sentAt() == null ? null : Timestamp.from(request.sentAt()))
+			.param("failureCode", request.failureCode())
+			.param("failureMessage", request.failureMessage())
+			.param("updatedAt", Timestamp.from(request.timestamps().updatedAt()))
+			.param("notificationId", request.id().value())
+			.param("userId", request.ownerId().value())
+			.param("expectedStatus", expectedStatus.name())
 			.query(this::mapRequest)
 			.optional();
 	}

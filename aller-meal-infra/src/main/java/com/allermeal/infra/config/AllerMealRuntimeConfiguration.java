@@ -1,6 +1,8 @@
 package com.allermeal.infra.config;
 
 import com.allermeal.application.admin.AdminCollectionFailureService;
+import com.allermeal.application.account.AccountWithdrawalService;
+import com.allermeal.application.account.ExpiredAccountPersonalDataCleanupService;
 import com.allermeal.application.admin.AdminBootstrapProperties;
 import com.allermeal.application.admin.AdminBootstrapService;
 import com.allermeal.application.admin.AdminDashboardSummaryService;
@@ -18,6 +20,7 @@ import com.allermeal.application.notification.NotificationRequestCreationService
 import com.allermeal.application.meal.PersonalizedMealQueryService;
 import com.allermeal.application.meal.PublicMealQueryService;
 import com.allermeal.application.port.out.AdminAuditLogRepository;
+import com.allermeal.application.port.out.AccountWithdrawalPrivacyRepository;
 import com.allermeal.application.port.out.AdminBootstrapLockRepository;
 import com.allermeal.application.port.out.AdminDashboardSummaryRepository;
 import com.allermeal.application.port.out.AdminNotificationReprocessRequestRepository;
@@ -42,6 +45,7 @@ import com.allermeal.application.port.out.NotificationRequestRepository;
 import com.allermeal.application.port.out.OutboxEventRepository;
 import com.allermeal.application.port.out.PasswordHasher;
 import com.allermeal.application.port.out.PublicMealQueryCache;
+import com.allermeal.application.port.out.RefreshTokenStore;
 import com.allermeal.application.port.out.SchoolRepository;
 import com.allermeal.application.port.out.SchoolCollectionSubscriptionRepository;
 import com.allermeal.application.port.out.UserRepository;
@@ -141,6 +145,23 @@ public class AllerMealRuntimeConfiguration {
 		Clock clock
 	) {
 		return new AdminDashboardSummaryService(summaryRepository, clock);
+	}
+
+	@Bean
+	AccountWithdrawalService accountWithdrawalService(
+		UserRepository userRepository,
+		AccountWithdrawalPrivacyRepository privacyRepository,
+		Clock clock
+	) {
+		return new AccountWithdrawalService(userRepository, privacyRepository, clock);
+	}
+
+	@Bean
+	ExpiredAccountPersonalDataCleanupService expiredAccountPersonalDataCleanupService(
+		AccountWithdrawalPrivacyRepository privacyRepository,
+		Clock clock
+	) {
+		return new ExpiredAccountPersonalDataCleanupService(privacyRepository, clock);
 	}
 
 	@Bean

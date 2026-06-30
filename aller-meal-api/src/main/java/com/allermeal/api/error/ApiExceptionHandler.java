@@ -9,6 +9,7 @@ import com.allermeal.application.admin.AdminNotificationReprocessConflictExcepti
 import com.allermeal.application.admin.AdminRecollectionConflictException;
 import com.allermeal.application.admin.InvalidAdminUserRoleChangeException;
 import com.allermeal.application.admin.AdminUserNotFoundException;
+import com.allermeal.application.account.AccountWithdrawalConflictException;
 import com.allermeal.api.error.response.ApiError;
 import com.allermeal.api.error.response.ApiErrorResponse;
 import com.allermeal.application.auth.DuplicateEmailException;
@@ -127,6 +128,12 @@ public final class ApiExceptionHandler {
 	@ExceptionHandler(InvalidNotificationHistoryRequestException.class)
 	ResponseEntity<ApiErrorResponse> handleInvalidNotificationHistoryRequest(HttpServletRequest request) {
 		return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "요청 값이 올바르지 않습니다.", request);
+	}
+
+	@ExceptionHandler(AccountWithdrawalConflictException.class)
+	ResponseEntity<ApiErrorResponse> handleAccountWithdrawalConflict(HttpServletRequest request) {
+		return response(HttpStatus.CONFLICT, "ACCOUNT_WITHDRAWAL_CONFLICT",
+			"탈퇴 상태를 변경할 수 없습니다.", request);
 	}
 
 	@ExceptionHandler(ChildProfileNotFoundException.class)

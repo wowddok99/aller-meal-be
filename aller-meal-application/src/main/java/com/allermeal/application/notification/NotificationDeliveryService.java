@@ -9,6 +9,7 @@ import com.allermeal.domain.notification.NotificationId;
 import com.allermeal.domain.notification.NotificationRequest;
 import com.allermeal.domain.notification.NotificationStatus;
 import com.allermeal.domain.user.User;
+import com.allermeal.domain.user.UserStatus;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Objects;
@@ -51,24 +52,45 @@ public class NotificationDeliveryService {
 		if (request == null || !request.isActive()) {
 			return new NotificationDeliveryResult(notificationId, NotificationStatus.CANCELED, 0);
 		}
+		User user = userRepository.findById(request.ownerId()).orElse(null);
+		if (user == null || user.status() != UserStatus.ACTIVE) {
+			NotificationRequest canceled = request.cancelForPersonalDataMasking(clock.instant());
+			savePersonalDataMaskedCancellation(request, canceled);
+			return new NotificationDeliveryResult(canceled.id(), canceled.status(), canceled.attemptCount());
+		}
 		NotificationRequest sending = request.startSending(clock.instant());
-		notificationRequestRepository.save(request.status(), sending);
+		NotificationRequest lockedSending = notificationRequestRepository
+			.startSendingIfOwnerActive(request.status(), sending)
+			.orElse(null);
+		if (lockedSending == null) {
+			return new NotificationDeliveryResult(request.id(), NotificationStatus.CANCELED, request.attemptCount());
+		}
 		try {
-			mailSender.send(mailCommand(sending));
-			NotificationRequest sent = sending.markSent(clock.instant());
+			mailSender.send(mailCommand(lockedSending, user));
+			NotificationRequest sent = lockedSending.markSent(clock.instant());
 			notificationRequestRepository.save(NotificationStatus.SENDING, sent);
 			return new NotificationDeliveryResult(sent.id(), sent.status(), sent.attemptCount());
 		} catch (RuntimeException exception) {
-			NotificationRequest failed = sending.markFailed(
+			NotificationRequest failed = lockedSending.markFailed(
 				"SMTP_SEND_FAILED", sanitizeFailureMessage(exception), clock.instant(), retryDelay);
 			notificationRequestRepository.save(NotificationStatus.SENDING, failed);
 			return new NotificationDeliveryResult(failed.id(), failed.status(), failed.attemptCount());
 		}
 	}
 
-	private NotificationMailCommand mailCommand(NotificationRequest request) {
-		User user = userRepository.findById(request.ownerId())
-			.orElseThrow(() -> new IllegalStateException("알림 수신 사용자를 찾을 수 없습니다."));
+	private void savePersonalDataMaskedCancellation(NotificationRequest request, NotificationRequest canceled) {
+		try {
+			notificationRequestRepository.save(request.status(), canceled);
+		} catch (IllegalStateException exception) {
+			NotificationRequest current = notificationRequestRepository.findById(request.id()).orElse(null);
+			if (current == null || !current.isActive()) {
+				return;
+			}
+			throw exception;
+		}
+	}
+
+	private NotificationMailCommand mailCommand(NotificationRequest request, User user) {
 		String recipientEmail = emailDecryptor.decrypt(user.encryptedEmail());
 		String subject = switch (request.reason()) {
 			case RISK_DETECTED -> "Aller Meal 급식 알레르기 위험 알림";
