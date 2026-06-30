@@ -65,7 +65,7 @@ public class WorkerEventListener {
 			eventType,
 			new String(message.getBody(), StandardCharsets.UTF_8));
 		if (!isSupported(event.type())) {
-			log.info("Ã³¸® ´ë»óÀÌ ¾Æ´Ñ ÀÌº¥Æ®¸¦ °Ç³Ê¶İ´Ï´Ù. eventId={}, eventType={}", event.id(), event.type());
+			log.info("ì²˜ë¦¬ ëŒ€ìƒì´ ì•„ë‹Œ ì´ë²¤íŠ¸ë¥¼ ê±´ë„ˆëœë‹ˆë‹¤. eventId={}, eventType={}", event.id(), event.type());
 			return;
 		}
 		consumer.consume(CONSUMER_NAME, event, this::handle);
@@ -85,14 +85,14 @@ public class WorkerEventListener {
 			handleNotificationRequested(event);
 			return;
 		}
-		throw new IllegalArgumentException("Áö¿øÇÏÁö ¾Ê´Â ÀÌº¥Æ®ÀÔ´Ï´Ù. eventType=" + event.type());
+		throw new IllegalArgumentException("ì§€ì›í•˜ì§€ ì•ŠëŠ” ì´ë²¤íŠ¸ì…ë‹ˆë‹¤. eventType=" + event.type());
 	}
 
 	private void handleMealCollected(IncomingEvent event) {
 		MealCollectedPayload payload = parseMealCollected(event.payload());
 		boolean labeled = mealAllergenLabelingService.label(new MealId(payload.mealId()));
 		log.info(
-			"±Ş½Ä ¾Ë·¹¸£±â ¶óº§¸µ ÀÌº¥Æ®¸¦ Ã³¸®Çß½À´Ï´Ù. eventId={}, mealId={}, labeled={}",
+			"ê¸‰ì‹ ì•Œë ˆë¥´ê¸° ë¼ë²¨ë§ ì´ë²¤íŠ¸ë¥¼ ì²˜ë¦¬í–ˆìŠµë‹ˆë‹¤. eventId={}, mealId={}, labeled={}",
 			event.id(), payload.mealId(), labeled);
 	}
 
@@ -101,13 +101,13 @@ public class WorkerEventListener {
 		NotificationDeliveryResult result = notificationDeliveryService.deliver(
 			new NotificationId(payload.notificationId()));
 		log.info(
-			"¾Ë¸² ¹ß¼Û ÀÌº¥Æ®¸¦ Ã³¸®Çß½À´Ï´Ù. eventId={}, notificationId={}, status={}, attemptCount={}",
+			"ì•Œë¦¼ ë°œì†¡ ì´ë²¤íŠ¸ë¥¼ ì²˜ë¦¬í–ˆìŠµë‹ˆë‹¤. eventId={}, notificationId={}, status={}, attemptCount={}",
 			event.id(), payload.notificationId(), result.status(), result.attemptCount());
 		if (result.status() == NotificationStatus.RETRY_PENDING) {
-			throw new IllegalStateException("¾Ë¸² ¹ß¼Û Àç½Ãµµ°¡ ÇÊ¿äÇÕ´Ï´Ù.");
+			throw new IllegalStateException("ì•Œë¦¼ ë°œì†¡ ì¬ì‹œë„ê°€ í•„ìš”í•©ë‹ˆë‹¤.");
 		}
 		if (result.status() == NotificationStatus.FAILED) {
-			throw new DeadLetterRoutingException("¾Ë¸² ¹ß¼Û ÃÖ´ë ½Ãµµ È½¼ö¸¦ ÃÊ°úÇß½À´Ï´Ù.");
+			throw new DeadLetterRoutingException("ì•Œë¦¼ ë°œì†¡ ìµœëŒ€ ì‹œë„ íšŸìˆ˜ë¥¼ ì´ˆê³¼í–ˆìŠµë‹ˆë‹¤.");
 		}
 	}
 
@@ -116,11 +116,11 @@ public class WorkerEventListener {
 			JsonNode root = objectMapper.readTree(payload);
 			JsonNode mealId = root == null ? null : root.get("mealId");
 			if (mealId == null || !mealId.isString() || mealId.textValue().isBlank()) {
-				throw new IllegalArgumentException("mealId°¡ ¾ø½À´Ï´Ù.");
+				throw new IllegalArgumentException("mealIdê°€ í•„ìš”í•©ë‹ˆë‹¤.");
 			}
 			return new MealCollectedPayload(UUID.fromString(mealId.textValue()));
 		} catch (RuntimeException exception) {
-			throw new IllegalArgumentException("MealCollected payload°¡ ¿Ã¹Ù¸£Áö ¾Ê½À´Ï´Ù.", exception);
+			throw new IllegalArgumentException("MealCollected payloadê°€ ì˜¬ë°”ë¥´ì§€ ì•ŠìŠµë‹ˆë‹¤.", exception);
 		}
 	}
 
@@ -129,11 +129,11 @@ public class WorkerEventListener {
 			JsonNode root = objectMapper.readTree(payload);
 			JsonNode notificationId = root == null ? null : root.get("notificationId");
 			if (notificationId == null || !notificationId.isString() || notificationId.textValue().isBlank()) {
-				throw new IllegalArgumentException("notificationId°¡ ¾ø½À´Ï´Ù.");
+				throw new IllegalArgumentException("notificationIdê°€ í•„ìš”í•©ë‹ˆë‹¤.");
 			}
 			return new NotificationRequestedPayload(UUID.fromString(notificationId.textValue()));
 		} catch (RuntimeException exception) {
-			throw new IllegalArgumentException("NotificationRequested payload°¡ ¿Ã¹Ù¸£Áö ¾Ê½À´Ï´Ù.", exception);
+			throw new IllegalArgumentException("NotificationRequested payloadê°€ ì˜¬ë°”ë¥´ì§€ ì•ŠìŠµë‹ˆë‹¤.", exception);
 		}
 	}
 
