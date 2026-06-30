@@ -132,6 +132,13 @@ public record NotificationRequest(
 			"정정 알림으로 대체되었습니다.", changedAt);
 	}
 
+	public NotificationRequest cancelForPersonalDataMasking(Instant changedAt) {
+		if (!isActive()) {
+			throw new IllegalStateException("활성 알림만 개인정보 마스킹으로 취소할 수 있습니다.");
+		}
+		return withStatus(NotificationStatus.CANCELED, attemptCount, null, null, "PERSONAL_DATA_MASKED", null, changedAt);
+	}
+
 	private NotificationRequest withStatus(
 		NotificationStatus nextStatus,
 		int nextAttemptCount,

@@ -69,3 +69,8 @@ aller-meal:
       enabled: "${NOTIFICATION_REQUEST_SCHEDULER_ENABLED:true}"
       fixed-delay: "${NOTIFICATION_REQUEST_SCHEDULER_FIXED_DELAY:PT1M}"
       limit: "${NOTIFICATION_REQUEST_SCHEDULER_LIMIT:100}"
+  account-withdrawal:
+    cleanup:
+      scheduler:
+        enabled: "${ACCOUNT_WITHDRAWAL_CLEANUP_SCHEDULER_ENABLED:true}"
+        fixed-delay: "${ACCOUNT_WITHDRAWAL_CLEANUP_SCHEDULER_FIXED_DELAY:PT1H}"

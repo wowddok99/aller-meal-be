@@ -43,6 +43,15 @@ class UserJpaEntity implements Persistable<UUID> {
 	@Column(name = "email_verification_status", nullable = false, length = 20)
 	private EmailVerificationStatus emailVerificationStatus;
 
+	@Column(name = "withdrawal_requested_at")
+	private Instant withdrawalRequestedAt;
+
+	@Column(name = "withdrawal_due_at")
+	private Instant withdrawalDueAt;
+
+	@Column(name = "personal_data_deleted_at")
+	private Instant personalDataDeletedAt;
+
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
@@ -64,6 +73,9 @@ class UserJpaEntity implements Persistable<UUID> {
 		UserRole role,
 		UserStatus status,
 		EmailVerificationStatus emailVerificationStatus,
+		Instant withdrawalRequestedAt,
+		Instant withdrawalDueAt,
+		Instant personalDataDeletedAt,
 		Instant createdAt,
 		Instant updatedAt,
 		Long version
@@ -75,6 +87,9 @@ class UserJpaEntity implements Persistable<UUID> {
 		this.role = role;
 		this.status = status;
 		this.emailVerificationStatus = emailVerificationStatus;
+		this.withdrawalRequestedAt = withdrawalRequestedAt;
+		this.withdrawalDueAt = withdrawalDueAt;
+		this.personalDataDeletedAt = personalDataDeletedAt;
 		this.createdAt = createdAt;
 		this.updatedAt = updatedAt;
 		this.version = version;
@@ -116,6 +131,18 @@ class UserJpaEntity implements Persistable<UUID> {
 
 	EmailVerificationStatus emailVerificationStatus() {
 		return emailVerificationStatus;
+	}
+
+	Instant withdrawalRequestedAt() {
+		return withdrawalRequestedAt;
+	}
+
+	Instant withdrawalDueAt() {
+		return withdrawalDueAt;
+	}
+
+	Instant personalDataDeletedAt() {
+		return personalDataDeletedAt;
 	}
 
 	Instant createdAt() {

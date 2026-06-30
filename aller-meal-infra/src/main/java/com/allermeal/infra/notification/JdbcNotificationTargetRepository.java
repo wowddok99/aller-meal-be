@@ -35,7 +35,9 @@ public class JdbcNotificationTargetRepository implements NotificationTargetRepos
 				SELECT preference.child_id, child.user_id, child.school_id, preference.notification_time
 				FROM notification_preferences preference
 				JOIN child_profiles child ON child.child_id = preference.child_id
+				JOIN users account ON account.user_id = child.user_id
 				WHERE preference.email_enabled = TRUE
+				  AND account.status = 'ACTIVE'
 				  AND preference.timezone = 'Asia/Seoul'
 				  AND preference.notification_time >= :windowStart
 				  AND preference.notification_time <= :windowEnd

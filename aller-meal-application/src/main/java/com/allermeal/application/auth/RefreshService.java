@@ -59,7 +59,7 @@ public final class RefreshService {
 			throw new UnauthorizedAccessException();
 		}
 		User user = userRepository.findById(rotation.userId()).orElseThrow(UnauthorizedAccessException::new);
-		if (user.status() != UserStatus.ACTIVE || user.emailVerificationStatus() != EmailVerificationStatus.VERIFIED) {
+		if (!canRefresh(user, issuedAt) || user.emailVerificationStatus() != EmailVerificationStatus.VERIFIED) {
 			refreshTokenStore.revoke(newTokenHash);
 			throw new UnauthorizedAccessException();
 		}
@@ -87,5 +87,12 @@ public final class RefreshService {
 			throw new UnauthorizedAccessException();
 		}
 		return requiredRefreshToken;
+	}
+
+	private boolean canRefresh(User user, Instant now) {
+		return user.status() == UserStatus.ACTIVE
+			|| (user.status() == UserStatus.WITHDRAWAL_PENDING
+				&& user.withdrawalDueAt() != null
+				&& now.isBefore(user.withdrawalDueAt()));
 	}
 }

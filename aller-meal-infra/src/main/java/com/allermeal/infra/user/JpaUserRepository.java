@@ -60,6 +60,9 @@ public class JpaUserRepository implements UserRepository {
 			user.role(),
 			user.status(),
 			user.emailVerificationStatus(),
+			user.withdrawalRequestedAt(),
+			user.withdrawalDueAt(),
+			user.personalDataDeletedAt(),
 			user.timestamps().createdAt(),
 			user.timestamps().updatedAt(),
 			user.version());
@@ -74,6 +77,9 @@ public class JpaUserRepository implements UserRepository {
 			entity.role(),
 			entity.status(),
 			entity.emailVerificationStatus(),
+			entity.withdrawalRequestedAt(),
+			entity.withdrawalDueAt(),
+			entity.personalDataDeletedAt(),
 			new EntityTimestamps(entity.createdAt(), entity.updatedAt()),
 			entity.version());
 	}
