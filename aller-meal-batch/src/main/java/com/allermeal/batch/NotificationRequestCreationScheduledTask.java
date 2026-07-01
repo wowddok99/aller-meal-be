@@ -31,13 +31,13 @@ public class NotificationRequestCreationScheduledTask {
 	@Scheduled(fixedDelayString = "${aller-meal.notification-request.scheduler.fixed-delay:PT1M}")
 	public void create() {
 		if (!running.compareAndSet(false, true)) {
-			log.info("¾Ë¸² ¿äÃ» »ı¼º Scheduler ½ÇÇàÀ» °Ç³Ê¶İ´Ï´Ù. reason=already_running");
+			log.info("ì•Œë¦¼ ìš”ì²­ ìƒì„± Scheduler ì‹¤í–‰ì„ ê±´ë„ˆëœë‹ˆë‹¤. reason=already_running");
 			return;
 		}
 		try {
 			NotificationRequestCreationResult result = notificationRequestCreationService.createPendingEmailRequests(limit);
 			log.info(
-				"¾Ë¸² ¿äÃ» »ı¼º Scheduler ½ÇÇàÀ» ¿Ï·áÇß½À´Ï´Ù. targetCount={}, createdCount={}, duplicateCount={}, correctionCount={}, canceledSupersededCount={}",
+				"ì•Œë¦¼ ìš”ì²­ ìƒì„± Scheduler ì‹¤í–‰ì„ ì™„ë£Œí–ˆìŠµë‹ˆë‹¤. targetCount={}, createdCount={}, duplicateCount={}, correctionCount={}, canceledSupersededCount={}",
 				result.targetCount(), result.createdCount(), result.duplicateCount(), result.correctionCount(),
 				result.canceledSupersededCount());
 		} finally {

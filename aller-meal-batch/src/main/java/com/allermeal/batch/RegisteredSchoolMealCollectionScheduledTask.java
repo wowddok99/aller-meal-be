@@ -31,13 +31,13 @@ public class RegisteredSchoolMealCollectionScheduledTask {
 	@Scheduled(fixedDelayString = "${aller-meal.collection.scheduler.fixed-delay:PT1H}")
 	public void collect() {
 		if (!running.compareAndSet(false, true)) {
-			log.info("µî·Ï ÇĞ±³ ±Ş½Ä ¼öÁı Scheduler ½ÇÇàÀ» °Ç³Ê¶İ´Ï´Ù. reason=already_running");
+			log.info("ë“±ë¡ í•™êµ ê¸‰ì‹ ìˆ˜ì§‘ Scheduler ì‹¤í–‰ì„ ê±´ë„ˆëœë‹ˆë‹¤. reason=already_running");
 			return;
 		}
 		try {
 			ScheduledMealCollectionResult result = scheduler.collect(daysAhead);
 			log.info(
-				"µî·Ï ÇĞ±³ ±Ş½Ä ¼öÁı Scheduler ½ÇÇàÀ» ¿Ï·áÇß½À´Ï´Ù. activeSubscriptionCount={}, targetCount={}, requestedJobCount={}, skippedJobCount={}",
+				"ë“±ë¡ í•™êµ ê¸‰ì‹ ìˆ˜ì§‘ Scheduler ì‹¤í–‰ì„ ì™„ë£Œí–ˆìŠµë‹ˆë‹¤. activeSubscriptionCount={}, targetCount={}, requestedJobCount={}, skippedJobCount={}",
 				result.activeSubscriptionCount(), result.targetCount(), result.requestedJobCount(),
 				result.skippedJobCount());
 		} finally {

@@ -6,7 +6,11 @@ import com.allermeal.application.notification.NotificationRequestCreationService
 import com.allermeal.application.port.out.AccountWithdrawalPrivacyRepository;
 import com.allermeal.application.port.out.EventPublisher;
 import com.allermeal.application.port.out.NotificationRequestRepository;
+import com.allermeal.application.port.out.OperationLogRetentionRepository;
 import com.allermeal.application.port.out.OutboxEventRepository;
+import com.allermeal.application.port.out.RawPayloadObjectRemover;
+import com.allermeal.application.port.out.RawPayloadRetentionRepository;
+import com.allermeal.application.retention.DataRetentionCleanupService;
 import com.allermeal.infra.account.JdbcAccountWithdrawalPrivacyRepository;
 import com.allermeal.infra.admin.JdbcExternalApiLogRepository;
 import com.allermeal.infra.collection.JdbcCollectionJobRepository;
@@ -21,6 +25,7 @@ import com.allermeal.infra.notification.JdbcNotificationRequestRepository;
 import com.allermeal.infra.outbox.RabbitMqEventPublisher;
 import com.allermeal.infra.outbox.JdbcOutboxEventRepository;
 import com.allermeal.infra.raw.MinioRawPayloadStorage;
+import com.allermeal.infra.retention.JdbcOperationLogRetentionRepository;
 import com.allermeal.infra.school.JdbcSchoolRepository;
 import java.time.Clock;
 import java.time.Duration;
@@ -51,6 +56,7 @@ import tools.jackson.databind.ObjectMapper;
 	JdbcNotificationRequestRepository.class,
 	JdbcOutboxEventRepository.class,
 	MinioRawPayloadStorage.class,
+	JdbcOperationLogRetentionRepository.class,
 	JdbcSchoolRepository.class
 })
 public class AllerMealBatchApplication {
@@ -89,6 +95,28 @@ public class AllerMealBatchApplication {
 		Clock clock
 	) {
 		return new ExpiredAccountPersonalDataCleanupService(privacyRepository, clock);
+	}
+
+	@Bean
+	DataRetentionCleanupService dataRetentionCleanupService(
+		RawPayloadRetentionRepository rawPayloadRetentionRepository,
+		RawPayloadObjectRemover rawPayloadObjectRemover,
+		OperationLogRetentionRepository operationLogRetentionRepository,
+		Clock clock,
+		@Value("${aller-meal.retention.raw-payload.period:P90D}") Duration rawPayloadRetentionPeriod,
+		@Value("${aller-meal.retention.operation-log.period:P365D}") Duration operationLogRetentionPeriod,
+		@Value("${aller-meal.retention.raw-payload.batch-size:100}") int rawPayloadBatchSize,
+		@Value("${aller-meal.retention.operation-log.batch-size:100}") int operationLogBatchSize
+	) {
+		return new DataRetentionCleanupService(
+			rawPayloadRetentionRepository,
+			rawPayloadObjectRemover,
+			operationLogRetentionRepository,
+			clock,
+			rawPayloadRetentionPeriod,
+			operationLogRetentionPeriod,
+			rawPayloadBatchSize,
+			operationLogBatchSize);
 	}
 
 	@Bean

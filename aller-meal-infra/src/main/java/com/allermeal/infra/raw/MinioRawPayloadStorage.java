@@ -1,5 +1,6 @@
 package com.allermeal.infra.raw;
 
+import com.allermeal.application.port.out.RawPayloadObjectRemover;
 import com.allermeal.application.port.out.RawPayloadStorage;
 import com.allermeal.application.port.out.command.RawPayload;
 import com.allermeal.application.raw.RawPayloadStorageException;
@@ -23,7 +24,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 
 @Component
-public class MinioRawPayloadStorage implements RawPayloadStorage {
+public class MinioRawPayloadStorage implements RawPayloadStorage, RawPayloadObjectRemover {
 
 	private static final DateTimeFormatter KEY_DATE = DateTimeFormatter.ofPattern("uuuu/MM/dd")
 		.withZone(ZoneOffset.UTC);
@@ -61,7 +62,7 @@ public class MinioRawPayloadStorage implements RawPayloadStorage {
 					"expires-at", payload.expiresAt().toString()))
 				.build());
 		} catch (Exception exception) {
-			throw new RawPayloadStorageException("MinIO ¿øº» payload ÀúÀå¿¡ ½ÇÆĞÇß½À´Ï´Ù.", exception);
+			throw new RawPayloadStorageException("MinIO ì›ë³¸ payload ì €ì¥ì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤.", exception);
 		}
 
 		RawObjectMetadata metadata = new RawObjectMetadata(
@@ -85,7 +86,16 @@ public class MinioRawPayloadStorage implements RawPayloadStorage {
 			return metadata;
 		} catch (RuntimeException exception) {
 			removeOrphanObject(objectKey, exception);
-			throw new RawPayloadStorageException("¿øº» °´Ã¼ ¸ŞÅ¸µ¥ÀÌÅÍ ÀúÀå¿¡ ½ÇÆĞÇß½À´Ï´Ù.", exception);
+			throw new RawPayloadStorageException("ì›ë³¸ ê°ì²´ metadata ì €ì¥ì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤.", exception);
+		}
+	}
+
+	@Override
+	public void remove(String objectKey) {
+		try {
+			minioClient.removeObject(RemoveObjectArgs.builder().bucket(bucket).object(objectKey).build());
+		} catch (Exception exception) {
+			throw new RawPayloadStorageException("MinIO ì›ë³¸ payload ì‚­ì œì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤.", exception);
 		}
 	}
 
@@ -113,7 +123,7 @@ public class MinioRawPayloadStorage implements RawPayloadStorage {
 		try {
 			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
 		} catch (NoSuchAlgorithmException exception) {
-			throw new IllegalStateException("SHA-256 ¾Ë°í¸®ÁòÀ» »ç¿ëÇÒ ¼ö ¾ø½À´Ï´Ù.", exception);
+			throw new IllegalStateException("SHA-256 ì•Œê³ ë¦¬ì¦˜ì„ ì‚¬ìš©í•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤.", exception);
 		}
 	}
 }

@@ -74,3 +74,14 @@ aller-meal:
       scheduler:
         enabled: "${ACCOUNT_WITHDRAWAL_CLEANUP_SCHEDULER_ENABLED:true}"
         fixed-delay: "${ACCOUNT_WITHDRAWAL_CLEANUP_SCHEDULER_FIXED_DELAY:PT1H}"
+  retention:
+    raw-payload:
+      period: "${RAW_PAYLOAD_RETENTION_PERIOD:P90D}"
+      batch-size: "${RAW_PAYLOAD_RETENTION_BATCH_SIZE:100}"
+    operation-log:
+      period: "${OPERATION_LOG_RETENTION_PERIOD:P365D}"
+      batch-size: "${OPERATION_LOG_RETENTION_BATCH_SIZE:100}"
+    cleanup:
+      scheduler:
+        enabled: "${DATA_RETENTION_CLEANUP_SCHEDULER_ENABLED:true}"
+        fixed-delay: "${DATA_RETENTION_CLEANUP_SCHEDULER_FIXED_DELAY:PT24H}"

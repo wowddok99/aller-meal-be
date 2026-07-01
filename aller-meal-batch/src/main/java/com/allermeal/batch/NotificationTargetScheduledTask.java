@@ -32,13 +32,13 @@ public class NotificationTargetScheduledTask {
 	@Scheduled(fixedDelayString = "${aller-meal.notification-target.scheduler.fixed-delay:PT1M}")
 	public void generate() {
 		if (!running.compareAndSet(false, true)) {
-			log.info("¾Ë¸² ´ë»ó »ı¼º Scheduler ½ÇÇàÀ» °Ç³Ê¶İ´Ï´Ù. reason=already_running");
+			log.info("ì•Œë¦¼ ëŒ€ìƒ ìƒì„± Scheduler ì‹¤í–‰ì„ ê±´ë„ˆëœë‹ˆë‹¤. reason=already_running");
 			return;
 		}
 		try {
 			ScheduledNotificationTargetGenerationResult result = scheduler.generateDue(lookback);
 			log.info(
-				"¾Ë¸² ´ë»ó »ı¼º Scheduler ½ÇÇàÀ» ¿Ï·áÇß½À´Ï´Ù. duePreferenceCount={}, createdTargetCount={}, duplicateTargetCount={}",
+				"ì•Œë¦¼ ëŒ€ìƒ ìƒì„± Scheduler ì‹¤í–‰ì„ ì™„ë£Œí–ˆìŠµë‹ˆë‹¤. duePreferenceCount={}, createdTargetCount={}, duplicateTargetCount={}",
 				result.duePreferenceCount(), result.createdTargetCount(), result.duplicateTargetCount());
 		} finally {
 			running.set(false);
