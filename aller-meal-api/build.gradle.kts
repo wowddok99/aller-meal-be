@@ -6,6 +6,7 @@ plugins {
 
 dependencies {
 	implementation(project(":aller-meal-application"))
+	implementation("org.springframework.boot:spring-boot-starter-actuator")
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
 	implementation("org.springframework.boot:spring-boot-starter-data-redis")
 	implementation("org.springframework:spring-tx")
