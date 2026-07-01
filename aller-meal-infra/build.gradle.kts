@@ -5,6 +5,7 @@ plugins {
 dependencies {
 	implementation(project(":aller-meal-application"))
 	implementation(project(":aller-meal-domain"))
+	implementation("org.springframework.boot:spring-boot-health:4.0.6")
 	implementation("org.springframework.boot:spring-boot-starter-jdbc:4.0.6")
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa:4.0.6")
 	implementation("org.springframework.boot:spring-boot-starter-data-redis:4.0.6")

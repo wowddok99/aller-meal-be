@@ -22,6 +22,27 @@ spring:
     host: "${SMTP_HOST:localhost}"
     port: "${SMTP_PORT:1025}"
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-components: always
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db,redis,rabbit,minio
+
+logging:
+  structured:
+    format:
+      console: logstash
+
 aller-meal:
   auth:
     email-encryption-key: "${AUTH_EMAIL_ENCRYPTION_KEY}"
