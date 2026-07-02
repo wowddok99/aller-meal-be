@@ -1,0 +1,7 @@
+.gradle
+**/build
+.git
+.idea
+.codex
+AGENTS.md
+.DS_Store

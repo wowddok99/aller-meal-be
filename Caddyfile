@@ -1,0 +1,17 @@
+{$ALLER_MEAL_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	handle /api/* {
+		reverse_proxy aller-meal-api:8080
+	}
+
+	handle {
+		respond "Not Found" 404
+	}
+}
