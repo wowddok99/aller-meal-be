@@ -61,6 +61,9 @@ curl -k https://localhost:18443/api/v1/allergens
 curl -k https://localhost:18443/not-found
 ```
 
+실행, 백업, 복구, 비밀값, DLQ 재처리, MinIO 보존 절차는
+[운영 Runbook](docs/operations-runbook.md)을 따릅니다.
+
 ## 빌드
 
 ```powershell
