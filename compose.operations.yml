@@ -1,0 +1,174 @@
+services:
+  aller-meal-caddy:
+    image: caddy:2.10.0-alpine
+    depends_on:
+      aller-meal-api:
+        condition: service_healthy
+    environment:
+      ALLER_MEAL_DOMAIN: ${ALLER_MEAL_DOMAIN:-localhost}
+    ports:
+      - "${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - aller-meal-caddy-data:/data
+      - aller-meal-caddy-config:/config
+    healthcheck:
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  aller-meal-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: aller-meal-api
+    environment:
+      DATABASE_URL: jdbc:postgresql://aller-meal-postgres:5432/${POSTGRES_DB:-aller_meal}
+      POSTGRES_USER: ${POSTGRES_USER:-aller_meal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-postgres-password}
+      RABBITMQ_HOST: aller-meal-rabbitmq
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-aller_meal}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-local-rabbitmq-password}
+      REDIS_HOST: aller-meal-redis
+      SMTP_HOST: aller-meal-mailpit
+      ALLER_MEAL_MINIO_ENDPOINT: http://aller-meal-minio:9000
+      ALLER_MEAL_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-aller_meal}
+      ALLER_MEAL_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-local-minio-password}
+      AUTH_EMAIL_ENCRYPTION_KEY: ${AUTH_EMAIL_ENCRYPTION_KEY}
+      AUTH_EMAIL_ENCRYPTION_KEY_VERSION: ${AUTH_EMAIL_ENCRYPTION_KEY_VERSION:-v1-local}
+      AUTH_EMAIL_FROM: ${AUTH_EMAIL_FROM:-no-reply@allermeal.local}
+      EMAIL_VERIFICATION_BASE_URL: ${EMAIL_VERIFICATION_BASE_URL:-https://${ALLER_MEAL_DOMAIN:-localhost}/api/v1/auth/email-verifications/confirm?token=}
+      PASSWORD_RESET_BASE_URL: ${PASSWORD_RESET_BASE_URL:-https://${ALLER_MEAL_DOMAIN:-localhost}/password-reset?token=}
+      AUTH_ACCESS_TOKEN_SIGNING_KEY: ${AUTH_ACCESS_TOKEN_SIGNING_KEY}
+      AUTH_ACCESS_TOKEN_TTL: ${AUTH_ACCESS_TOKEN_TTL:-15m}
+      AUTH_REFRESH_TOKEN_TTL: ${AUTH_REFRESH_TOKEN_TTL:-14d}
+      AUTH_ALLOWED_ORIGINS: ${AUTH_ALLOWED_ORIGINS:-https://${ALLER_MEAL_DOMAIN:-localhost}}
+      ALLER_MEAL_AUTH_COOKIE_SECURE: ${ALLER_MEAL_AUTH_COOKIE_SECURE:-true}
+      ALLER_MEAL_AUTH_COOKIE_SAME_SITE: ${ALLER_MEAL_AUTH_COOKIE_SAME_SITE:-Lax}
+      ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-}
+    expose:
+      - "8080"
+    depends_on:
+      aller-meal-postgres:
+        condition: service_healthy
+      aller-meal-redis:
+        condition: service_healthy
+      aller-meal-rabbitmq:
+        condition: service_healthy
+      aller-meal-minio:
+        condition: service_healthy
+      aller-meal-mailpit:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8080/actuator/health/readiness | grep '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    restart: unless-stopped
+
+  aller-meal-batch:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: aller-meal-batch
+    environment:
+      DATABASE_URL: jdbc:postgresql://aller-meal-postgres:5432/${POSTGRES_DB:-aller_meal}
+      POSTGRES_USER: ${POSTGRES_USER:-aller_meal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-postgres-password}
+      RABBITMQ_HOST: aller-meal-rabbitmq
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-aller_meal}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-local-rabbitmq-password}
+      ALLER_MEAL_MINIO_ENDPOINT: http://aller-meal-minio:9000
+      ALLER_MEAL_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-aller_meal}
+      ALLER_MEAL_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-local-minio-password}
+      NEIS_BASE_URL: ${NEIS_BASE_URL:-https://open.neis.go.kr/hub}
+      NEIS_API_KEY: ${NEIS_API_KEY:-}
+      SCHOOL_COLLECTION_SCHEDULER_ENABLED: ${SCHOOL_COLLECTION_SCHEDULER_ENABLED:-true}
+      SCHOOL_COLLECTION_SCHEDULER_FIXED_DELAY: ${SCHOOL_COLLECTION_SCHEDULER_FIXED_DELAY:-PT1H}
+      SCHOOL_COLLECTION_SCHEDULER_DAYS_AHEAD: ${SCHOOL_COLLECTION_SCHEDULER_DAYS_AHEAD:-7}
+      NOTIFICATION_TARGET_SCHEDULER_ENABLED: ${NOTIFICATION_TARGET_SCHEDULER_ENABLED:-true}
+      NOTIFICATION_TARGET_SCHEDULER_FIXED_DELAY: ${NOTIFICATION_TARGET_SCHEDULER_FIXED_DELAY:-PT1M}
+      NOTIFICATION_TARGET_SCHEDULER_LOOKBACK: ${NOTIFICATION_TARGET_SCHEDULER_LOOKBACK:-PT5M}
+      NOTIFICATION_REQUEST_SCHEDULER_ENABLED: ${NOTIFICATION_REQUEST_SCHEDULER_ENABLED:-true}
+      NOTIFICATION_REQUEST_SCHEDULER_FIXED_DELAY: ${NOTIFICATION_REQUEST_SCHEDULER_FIXED_DELAY:-PT1M}
+      NOTIFICATION_REQUEST_SCHEDULER_LIMIT: ${NOTIFICATION_REQUEST_SCHEDULER_LIMIT:-100}
+      ACCOUNT_WITHDRAWAL_CLEANUP_SCHEDULER_ENABLED: ${ACCOUNT_WITHDRAWAL_CLEANUP_SCHEDULER_ENABLED:-true}
+      ACCOUNT_WITHDRAWAL_CLEANUP_SCHEDULER_FIXED_DELAY: ${ACCOUNT_WITHDRAWAL_CLEANUP_SCHEDULER_FIXED_DELAY:-PT1H}
+      RAW_PAYLOAD_RETENTION_PERIOD: ${RAW_PAYLOAD_RETENTION_PERIOD:-P90D}
+      RAW_PAYLOAD_RETENTION_BATCH_SIZE: ${RAW_PAYLOAD_RETENTION_BATCH_SIZE:-100}
+      OPERATION_LOG_RETENTION_PERIOD: ${OPERATION_LOG_RETENTION_PERIOD:-P365D}
+      OPERATION_LOG_RETENTION_BATCH_SIZE: ${OPERATION_LOG_RETENTION_BATCH_SIZE:-100}
+      DATA_RETENTION_CLEANUP_SCHEDULER_ENABLED: ${DATA_RETENTION_CLEANUP_SCHEDULER_ENABLED:-true}
+      DATA_RETENTION_CLEANUP_SCHEDULER_FIXED_DELAY: ${DATA_RETENTION_CLEANUP_SCHEDULER_FIXED_DELAY:-PT24H}
+    depends_on:
+      aller-meal-postgres:
+        condition: service_healthy
+      aller-meal-rabbitmq:
+        condition: service_healthy
+      aller-meal-minio:
+        condition: service_healthy
+    restart: unless-stopped
+
+  aller-meal-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: aller-meal-worker
+    environment:
+      DATABASE_URL: jdbc:postgresql://aller-meal-postgres:5432/${POSTGRES_DB:-aller_meal}
+      POSTGRES_USER: ${POSTGRES_USER:-aller_meal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-postgres-password}
+      RABBITMQ_HOST: aller-meal-rabbitmq
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-aller_meal}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-local-rabbitmq-password}
+      REDIS_HOST: aller-meal-redis
+      SMTP_HOST: aller-meal-mailpit
+      ALLER_MEAL_MINIO_ENDPOINT: http://aller-meal-minio:9000
+      ALLER_MEAL_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-aller_meal}
+      ALLER_MEAL_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-local-minio-password}
+      AUTH_EMAIL_ENCRYPTION_KEY: ${AUTH_EMAIL_ENCRYPTION_KEY}
+      AUTH_EMAIL_ENCRYPTION_KEY_VERSION: ${AUTH_EMAIL_ENCRYPTION_KEY_VERSION:-v1-local}
+      AUTH_EMAIL_FROM: ${AUTH_EMAIL_FROM:-no-reply@allermeal.local}
+      AUTH_ACCESS_TOKEN_SIGNING_KEY: ${AUTH_ACCESS_TOKEN_SIGNING_KEY}
+      AUTH_ACCESS_TOKEN_TTL: ${AUTH_ACCESS_TOKEN_TTL:-15m}
+      AUTH_REFRESH_TOKEN_TTL: ${AUTH_REFRESH_TOKEN_TTL:-14d}
+    depends_on:
+      aller-meal-postgres:
+        condition: service_healthy
+      aller-meal-redis:
+        condition: service_healthy
+      aller-meal-rabbitmq:
+        condition: service_healthy
+      aller-meal-minio:
+        condition: service_healthy
+      aller-meal-mailpit:
+        condition: service_healthy
+    restart: unless-stopped
+
+  aller-meal-postgres:
+    ports: !reset []
+
+  aller-meal-redis:
+    ports: !reset []
+
+  aller-meal-rabbitmq:
+    ports: !reset []
+
+  aller-meal-minio:
+    ports: !reset []
+
+  aller-meal-mailpit:
+    ports: !reset []
+
+volumes:
+  aller-meal-caddy-data:
+  aller-meal-caddy-config:

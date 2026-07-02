@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-aller_meal}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-postgres-password}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "${POSTGRES_PUBLISHED_HOST:-127.0.0.1}:${POSTGRES_PUBLISHED_PORT:-5432}:5432"
     volumes:
       - aller-meal-postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -21,7 +21,7 @@ services:
     image: redis:8.0.2-alpine
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "127.0.0.1:6379:6379"
+      - "${REDIS_PUBLISHED_HOST:-127.0.0.1}:${REDIS_PUBLISHED_PORT:-6379}:6379"
     volumes:
       - aller-meal-redis-data:/data
     healthcheck:
@@ -39,8 +39,8 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-aller_meal}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-local-rabbitmq-password}
     ports:
-      - "127.0.0.1:5672:5672"
-      - "127.0.0.1:15672:15672"
+      - "${RABBITMQ_PUBLISHED_HOST:-127.0.0.1}:${RABBITMQ_AMQP_PUBLISHED_PORT:-5672}:5672"
+      - "${RABBITMQ_PUBLISHED_HOST:-127.0.0.1}:${RABBITMQ_MANAGEMENT_PUBLISHED_PORT:-15672}:15672"
     volumes:
       - aller-meal-rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
@@ -58,8 +58,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-aller_meal}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-local-minio-password}
     ports:
-      - "127.0.0.1:9000:9000"
-      - "127.0.0.1:9001:9001"
+      - "${MINIO_PUBLISHED_HOST:-127.0.0.1}:${MINIO_API_PUBLISHED_PORT:-9000}:9000"
+      - "${MINIO_PUBLISHED_HOST:-127.0.0.1}:${MINIO_CONSOLE_PUBLISHED_PORT:-9001}:9001"
     volumes:
       - aller-meal-minio-data:/data
     healthcheck:
@@ -75,8 +75,8 @@ services:
     environment:
       MP_DATABASE: /data/mailpit.db
     ports:
-      - "127.0.0.1:1025:1025"
-      - "127.0.0.1:8025:8025"
+      - "${MAILPIT_PUBLISHED_HOST:-127.0.0.1}:${MAILPIT_SMTP_PUBLISHED_PORT:-1025}:1025"
+      - "${MAILPIT_PUBLISHED_HOST:-127.0.0.1}:${MAILPIT_WEB_PUBLISHED_PORT:-8025}:8025"
     volumes:
       - aller-meal-mailpit-data:/data
     healthcheck:
