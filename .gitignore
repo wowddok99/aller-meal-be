@@ -1,6 +1,5 @@
 .env*
 !.env.example
-!.env.operations.example
 .gradle
 build/
 !gradle/wrapper/gradle-wrapper.jar
