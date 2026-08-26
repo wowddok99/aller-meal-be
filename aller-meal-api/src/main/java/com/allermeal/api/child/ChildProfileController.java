@@ -81,6 +81,11 @@ public final class ChildProfileController {
 			new ReplaceChildAllergensCommand(request.allergenCodes())));
 	}
 
+	@GetMapping("/{childId}/allergens")
+	public ChildAllergenResponse findAllergens(HttpServletRequest servletRequest, @PathVariable UUID childId) {
+		return ChildAllergenResponse.from(childAllergenService.find(currentUser(servletRequest).id(), new ChildProfileId(childId)));
+	}
+
 	@GetMapping("/{childId}/notification-preference")
 	public ChildNotificationPreferenceResponse findNotificationPreference(HttpServletRequest servletRequest,
 		@PathVariable UUID childId) {
