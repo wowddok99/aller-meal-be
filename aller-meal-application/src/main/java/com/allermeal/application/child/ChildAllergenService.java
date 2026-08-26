@@ -36,6 +36,17 @@ public final class ChildAllergenService {
 		return new ChildAllergenResult(childProfileId, allergenCodes);
 	}
 
+	public ChildAllergenResult find(UserId ownerId, ChildProfileId childProfileId) {
+		if (childProfileRepository.findByIdAndOwnerId(childProfileId, ownerId).isEmpty()) {
+			throw new ChildProfileNotFoundException();
+		}
+		List<Integer> allergenCodes = childAllergenRepository.findAllergenCodes(ownerId, childProfileId);
+		if (allergenCodes.isEmpty() && childProfileRepository.findByIdAndOwnerId(childProfileId, ownerId).isEmpty()) {
+			throw new ChildProfileNotFoundException();
+		}
+		return new ChildAllergenResult(childProfileId, allergenCodes);
+	}
+
 	private List<Integer> normalize(ReplaceChildAllergensCommand command) {
 		try {
 			Set<Integer> allergenCodes = new TreeSet<>(command.allergenCodes());
