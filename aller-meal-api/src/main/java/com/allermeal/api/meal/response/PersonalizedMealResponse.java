@@ -4,6 +4,7 @@ import com.allermeal.application.meal.PersonalizedMealRiskResult;
 import com.allermeal.domain.meal.Meal;
 import com.allermeal.domain.meal.MealItemId;
 import com.allermeal.domain.risk.MealItemRisk;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -20,6 +21,8 @@ public record PersonalizedMealResponse(
 	String labelingStatus,
 	String nutritionInfo,
 	String originInfo,
+	@Schema(nullable = true, description = "원문 전체를 해석할 수 없으면 null이며, originInfo를 표시해야 합니다.")
+	List<MealOriginResponse> origins,
 	String riskLevel,
 	String riskVersion,
 	List<PersonalizedMealItemResponse> items
@@ -37,6 +40,7 @@ public record PersonalizedMealResponse(
 			meal.labelingStatus().name(),
 			meal.nutritionInfo(),
 			meal.originInfo(),
+			MealOriginResponse.parseAllOrNull(meal.originInfo()),
 			result.risk().riskLevel().name(),
 			result.risk().riskVersion(),
 			meal.items().stream()
