@@ -1,6 +1,7 @@
 package com.allermeal.api.meal.response;
 
 import com.allermeal.domain.meal.Meal;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -14,6 +15,8 @@ public record PublicMealResponse(
 	String labelingStatus,
 	String nutritionInfo,
 	String originInfo,
+	@Schema(nullable = true, description = "원문 전체를 해석할 수 없으면 null이며, originInfo를 표시해야 합니다.")
+	List<MealOriginResponse> origins,
 	List<PublicMealItemResponse> items
 ) {
 
@@ -26,6 +29,7 @@ public record PublicMealResponse(
 			meal.labelingStatus().name(),
 			meal.nutritionInfo(),
 			meal.originInfo(),
+			MealOriginResponse.parseAllOrNull(meal.originInfo()),
 			meal.items().stream().map(PublicMealItemResponse::from).toList());
 	}
 }
