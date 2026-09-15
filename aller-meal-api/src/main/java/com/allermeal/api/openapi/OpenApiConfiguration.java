@@ -19,6 +19,7 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springdoc.core.customizers.OperationCustomizer;
 import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
@@ -83,7 +84,11 @@ public class OpenApiConfiguration {
 		Map.entry("AdminNotificationFailureController#findDeadLetterEvents", "listNotificationDeadLetterEvents"),
 		Map.entry("AdminNotificationFailureController#reprocessDeadLetterEvent", "reprocessNotificationDeadLetterEvent"),
 		Map.entry("AdminDashboardSummaryController#getSummary", "getAdminDashboardSummary"),
-		Map.entry("AdminUserController#promoteToAdmin", "promoteUserToAdmin")
+		Map.entry("AdminUserController#promoteToAdmin", "promoteUserToAdmin"),
+		Map.entry("AdminUserController#changeSuspension", "changeAdminUserSuspension"),
+		Map.entry("AdminUserController#findUsers", "listAdminUsers"),
+		Map.entry("AdminUserController#findUser", "getAdminUser"),
+		Map.entry("AdminUserController#findAccessHistory", "getAdminUserAccessHistory")
 	);
 
 	@Bean
@@ -118,9 +123,28 @@ public class OpenApiConfiguration {
 	}
 
 	@Bean
-	GroupedOpenApi adminApi(OperationCustomizer allerMealOperationCustomizer) {
+	GroupedOpenApi adminApi(
+		OperationCustomizer allerMealOperationCustomizer,
+		OpenApiCustomizer adminLegacyAccessHistoryNullableCustomizer
+	) {
 		return GroupedOpenApi.builder().group("admin").pathsToMatch("/api/v1/admin/**")
-			.addOperationCustomizer(allerMealOperationCustomizer).build();
+			.addOperationCustomizer(allerMealOperationCustomizer)
+			.addOpenApiCustomizer(adminLegacyAccessHistoryNullableCustomizer).build();
+	}
+
+	@Bean
+	@SuppressWarnings("unchecked")
+	OpenApiCustomizer adminLegacyAccessHistoryNullableCustomizer() {
+		return openApi -> {
+			Schema<?> historyItem = openApi.getComponents().getSchemas().get("AdminUserAccessHistoryItemResponse");
+			if (historyItem == null || historyItem.getProperties() == null) return;
+			for (String propertyName : List.of("beforeRole", "afterRole", "beforeStatus", "afterStatus")) {
+				Schema<?> property = historyItem.getProperties().get(propertyName);
+				if (property != null && property.getEnum() != null && !property.getEnum().contains(null)) {
+					property.addEnumItemObject(null);
+				}
+			}
+		};
 	}
 
 	@Bean
@@ -224,8 +248,10 @@ public class OpenApiConfiguration {
 				addNotFoundAndConflict(operation, "Idempotency-Key가 다른 재수집 요청에 이미 사용되었습니다.");
 			case "AdminNotificationFailureController#reprocessDeadLetterEvent" ->
 				addNotFoundAndConflict(operation, "DLQ 재처리 요청이 이미 처리되었거나 충돌했습니다.");
-			case "AdminUserController#promoteToAdmin" ->
-				addNotFoundAndConflict(operation, "관리자 권한으로 변경할 수 없는 사용자입니다.");
+			case "AdminUserController#promoteToAdmin", "AdminUserController#changeSuspension" ->
+				addNotFoundAndConflict(operation, "사용자 상태가 변경되어 요청을 처리할 수 없습니다.");
+			case "AdminUserController#findUser", "AdminUserController#findAccessHistory" ->
+				addErrorResponse(operation, "404", "요청한 리소스를 찾을 수 없습니다.");
 			default -> { }
 		}
 	}

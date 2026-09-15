@@ -72,6 +72,9 @@ public final class LoginService {
 		if (!passwordHasher.matches(password, user.passwordHash().value())) {
 			throw invalidCredentials(emailSearchHash.value());
 		}
+		if (user.status() == UserStatus.SUSPENDED) {
+			throw new AccountSuspendedException();
+		}
 		if (user.status() != UserStatus.ACTIVE) {
 			throw new InvalidLoginCredentialsException();
 		}
@@ -93,6 +96,7 @@ public final class LoginService {
 			tokenHasher.hash(refreshToken),
 			issuedAt,
 			refreshExpiresAt,
+			user.sessionVersion(),
 			refreshTokenTtl));
 		return new AuthenticationResult(
 			user.id(),

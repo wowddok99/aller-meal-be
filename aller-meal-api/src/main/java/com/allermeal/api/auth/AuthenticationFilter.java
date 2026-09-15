@@ -62,7 +62,16 @@ public final class AuthenticationFilter extends OncePerRequestFilter {
 			return;
 		}
 		User user = userRepository.findById(claims.userId()).orElse(null);
-		if (user == null || !isAllowedStatus(request, user.status())) {
+		if (user == null) {
+			writeError(response, request, HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+			return;
+		}
+		if (user.status() == UserStatus.SUSPENDED) {
+			writeError(response, request, HttpStatus.FORBIDDEN, "ACCOUNT_SUSPENDED",
+				"계정 이용이 제한되었습니다. 문의가 필요하면 고객 지원에 연락해 주세요.");
+			return;
+		}
+		if (claims.sessionVersion() != user.sessionVersion() || !isAllowedStatus(request, user.status())) {
 			writeError(response, request, HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
 			return;
 		}

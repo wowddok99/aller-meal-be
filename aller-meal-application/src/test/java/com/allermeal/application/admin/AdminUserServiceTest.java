@@ -5,8 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.allermeal.application.auth.DuplicateEmailException;
 import com.allermeal.application.port.out.AdminAuditLogRepository;
+import com.allermeal.application.port.out.AdminUserAccessAuditRepository;
 import com.allermeal.application.port.out.UserRepository;
 import com.allermeal.application.port.out.command.AdminAuditLogCommand;
+import com.allermeal.application.port.out.command.AdminUserAccessAuditCommand;
+import com.allermeal.application.port.out.result.AdminUserAccessAuditPageResult;
 import com.allermeal.domain.common.EntityTimestamps;
 import com.allermeal.domain.user.EmailSearchHash;
 import com.allermeal.domain.user.EmailVerificationStatus;
@@ -40,7 +43,7 @@ final class AdminUserServiceTest {
 		users.put(target);
 
 		assertThrows(AdminAuthorizationException.class,
-			() -> new AdminUserService(users, new FakeAdminAuditLogs(), CLOCK).promoteToAdmin(actor, target.id()));
+			() -> service(users, new FakeAdminAuditLogs()).promoteToAdmin(actor, target.id(), command()));
 	}
 
 	@Test
@@ -51,7 +54,7 @@ final class AdminUserServiceTest {
 		users.put(target);
 		FakeAdminAuditLogs auditLogs = new FakeAdminAuditLogs();
 
-		AdminUserRoleResult result = new AdminUserService(users, auditLogs, CLOCK).promoteToAdmin(actor, target.id());
+		AdminUserRoleResult result = service(users, auditLogs).promoteToAdmin(actor, target.id(), command());
 
 		assertEquals(UserRole.ADMIN, result.role());
 		assertEquals(UserRole.ADMIN, users.findById(target.id()).orElseThrow().role());
@@ -68,8 +71,16 @@ final class AdminUserServiceTest {
 		User target = user("b".repeat(64), UserRole.MEMBER, UserStatus.WITHDRAWAL_PENDING);
 		users.put(target);
 
-		assertThrows(InvalidAdminUserRoleChangeException.class,
-			() -> new AdminUserService(users, new FakeAdminAuditLogs(), CLOCK).promoteToAdmin(actor, target.id()));
+		assertThrows(AdminUserStateConflictException.class,
+			() -> service(users, new FakeAdminAuditLogs()).promoteToAdmin(actor, target.id(), command()));
+	}
+
+	private static AdminUserService service(FakeUsers users, FakeAdminAuditLogs auditLogs) {
+		return new AdminUserService(users, null, null, null, auditLogs, new FakeAccessAudits(), CLOCK);
+	}
+
+	private static AdminUserRoleChangeCommand command() {
+		return new AdminUserRoleChangeCommand("운영 담당자 지정", 0L);
 	}
 
 	private static User user(String emailSearchHash, UserRole role, UserStatus status) {
@@ -132,6 +143,18 @@ final class AdminUserServiceTest {
 		@Override
 		public void save(AdminAuditLogCommand command) {
 			commands.add(command);
+		}
+	}
+
+	private static final class FakeAccessAudits implements AdminUserAccessAuditRepository {
+
+		@Override
+		public void save(AdminUserAccessAuditCommand command) {
+		}
+
+		@Override
+		public AdminUserAccessAuditPageResult findByTargetUserId(UserId targetUserId, int page, int pageSize) {
+			return new AdminUserAccessAuditPageResult(List.of(), page, pageSize, 0);
 		}
 	}
 }

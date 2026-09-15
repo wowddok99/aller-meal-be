@@ -20,6 +20,8 @@ import com.allermeal.application.notification.NotificationRequestCreationService
 import com.allermeal.application.meal.PersonalizedMealQueryService;
 import com.allermeal.application.meal.PublicMealQueryService;
 import com.allermeal.application.port.out.AdminAuditLogRepository;
+import com.allermeal.application.port.out.AdminUserAccessAuditRepository;
+import com.allermeal.application.port.out.AdminUserQueryRepository;
 import com.allermeal.application.port.out.AccountWithdrawalPrivacyRepository;
 import com.allermeal.application.port.out.AdminBootstrapLockRepository;
 import com.allermeal.application.port.out.AdminDashboardSummaryRepository;
@@ -105,10 +107,19 @@ public class AllerMealRuntimeConfiguration {
 	@Bean
 	AdminUserService adminUserService(
 		UserRepository userRepository,
+		AdminUserQueryRepository adminUserQueryRepository,
+		EmailDecryptor emailDecryptor,
+		EmailSearchHasher emailSearchHasher,
 		AdminAuditLogRepository auditLogRepository,
+		AdminUserAccessAuditRepository accessAuditRepository,
+		RefreshTokenStore refreshTokenStore,
+		NotificationRequestRepository notificationRequestRepository,
+		@Value("${aller-meal.auth.refresh-token-ttl:14d}") Duration refreshTokenTtl,
 		Clock clock
 	) {
-		return new AdminUserService(userRepository, auditLogRepository, clock);
+		return new AdminUserService(
+			userRepository, adminUserQueryRepository, emailDecryptor, emailSearchHasher, auditLogRepository,
+			accessAuditRepository, refreshTokenStore, notificationRequestRepository, refreshTokenTtl, clock);
 	}
 
 	@Bean

@@ -94,7 +94,7 @@ public class AdminBootstrapService {
 	private Optional<AdminBootstrapResult> promoteExistingUser(User user, Instant now) {
 		User next;
 		try {
-			next = user.promoteToAdmin(now).verifyEmail(now);
+			next = user.verifyEmail(now).promoteToAdmin(now);
 		} catch (IllegalStateException exception) {
 			throw new InvalidAdminUserRoleChangeException();
 		}

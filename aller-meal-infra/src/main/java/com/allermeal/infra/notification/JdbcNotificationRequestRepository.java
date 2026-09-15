@@ -19,6 +19,7 @@ import com.allermeal.domain.user.UserId;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -120,24 +121,33 @@ public class JdbcNotificationRequestRepository implements NotificationRequestRep
 		NotificationRequest request
 	) {
 		return jdbcClient.sql("""
-				WITH active_account AS (
-				    SELECT user_id
+				WITH owner_account AS (
+				    SELECT status
 				    FROM users
-				    WHERE user_id = :userId AND status = 'ACTIVE'
+				    WHERE user_id = :userId
 				    FOR UPDATE
 				),
 				updated AS (
 				    UPDATE notification_requests
-				    SET status = :status,
-				        attempt_count = :attemptCount,
-				        next_attempt_at = :nextAttemptAt,
-				        sent_at = :sentAt,
-				        failure_code = :failureCode,
-				        failure_message = :failureMessage,
+				    SET status = CASE WHEN (SELECT status FROM owner_account) = 'ACTIVE'
+				                      THEN :status ELSE 'CANCELED' END,
+				        attempt_count = CASE WHEN (SELECT status FROM owner_account) = 'ACTIVE'
+				                             THEN :attemptCount ELSE attempt_count END,
+				        next_attempt_at = CASE WHEN (SELECT status FROM owner_account) = 'ACTIVE'
+				                               THEN :nextAttemptAt ELSE NULL END,
+				        sent_at = CASE WHEN (SELECT status FROM owner_account) = 'ACTIVE'
+				                  THEN :sentAt ELSE NULL END,
+				        failure_code = CASE
+				            WHEN (SELECT status FROM owner_account) = 'ACTIVE' THEN :failureCode
+				            WHEN (SELECT status FROM owner_account) = 'SUSPENDED' THEN 'OWNER_ACCESS_RESTRICTED'
+				            ELSE 'PERSONAL_DATA_MASKED'
+				        END,
+				        failure_message = CASE WHEN (SELECT status FROM owner_account) = 'ACTIVE'
+				                               THEN :failureMessage ELSE NULL END,
 				        updated_at = :updatedAt
 				    WHERE notification_id = :notificationId
 				      AND status = :expectedStatus
-				      AND EXISTS (SELECT 1 FROM active_account)
+				      AND EXISTS (SELECT 1 FROM owner_account)
 				    RETURNING notification_id, notification_target_id, child_id, user_id, notification_date,
 				              channel, reason, dedup_key, correction_key, content_version, is_correction,
 				              supersedes_notification_id, status, attempt_count, max_attempts, next_attempt_at,
@@ -161,6 +171,27 @@ public class JdbcNotificationRequestRepository implements NotificationRequestRep
 			.param("expectedStatus", expectedStatus.name())
 			.query(this::mapRequest)
 			.optional();
+	}
+
+	@Override
+	public int cancelPendingAndRetryForSuspendedOwner(UserId ownerId, Instant canceledAt) {
+		return jdbcClient.sql("""
+				UPDATE notification_requests request
+				SET status = 'CANCELED',
+				    next_attempt_at = NULL,
+				    sent_at = NULL,
+				    failure_code = 'OWNER_ACCESS_RESTRICTED',
+				    failure_message = NULL,
+				    updated_at = :canceledAt
+				FROM users account
+				WHERE request.user_id = :userId
+				  AND account.user_id = request.user_id
+				  AND account.status = 'SUSPENDED'
+				  AND request.status IN ('PENDING', 'RETRY_PENDING')
+				""")
+			.param("userId", ownerId.value())
+			.param("canceledAt", Timestamp.from(canceledAt))
+			.update();
 	}
 
 	@Override

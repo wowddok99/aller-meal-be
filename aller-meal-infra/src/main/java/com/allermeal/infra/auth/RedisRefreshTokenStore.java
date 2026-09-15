@@ -20,10 +20,10 @@ public final class RedisRefreshTokenStore implements RefreshTokenStore {
 	static final String USER_TOKEN_SET_KEY_PREFIX = "refresh-token:v2:user-tokens:";
 	static final String USER_REVOKED_AFTER_KEY_PREFIX = "refresh-token:v2:user-revoked-after:";
 	private static final RedisScript<String> STORE_SCRIPT = RedisScript.of("""
-		redis.call('SET', KEYS[1], ARGV[1] .. '|' .. ARGV[2] .. '|' .. ARGV[3] .. '|' .. ARGV[4], 'EX', tonumber(ARGV[6]))
-		redis.call('SET', KEYS[2], ARGV[5], 'EX', tonumber(ARGV[6]))
-		redis.call('SADD', KEYS[3], ARGV[5])
-		redis.call('EXPIRE', KEYS[3], tonumber(ARGV[6]))
+		redis.call('SET', KEYS[1], ARGV[1] .. '|' .. ARGV[2] .. '|' .. ARGV[3] .. '|' .. ARGV[4] .. '|' .. ARGV[5], 'EX', tonumber(ARGV[7]))
+		redis.call('SET', KEYS[2], ARGV[6], 'EX', tonumber(ARGV[7]))
+		redis.call('SADD', KEYS[3], ARGV[6])
+		redis.call('EXPIRE', KEYS[3], tonumber(ARGV[7]))
 		return 'STORED'
 		""", String.class);
 	private static final RedisScript<String> ROTATE_SCRIPT = RedisScript.of("""
@@ -34,12 +34,23 @@ public final class RedisRefreshTokenStore implements RefreshTokenStore {
 			local userId = string.sub(activeValue, 1, firstSeparator - 1)
 			local familyId = string.sub(activeValue, firstSeparator + 1, secondSeparator - 1)
 			local thirdSeparator = string.find(activeValue, '|', secondSeparator + 1)
-			local issuedAt = ''
-			if thirdSeparator then
-				issuedAt = string.sub(activeValue, secondSeparator + 1, thirdSeparator - 1)
+			local fourthSeparator = thirdSeparator and string.find(activeValue, '|', thirdSeparator + 1)
+			if not fourthSeparator then
+				redis.call('DEL', KEYS[1])
+				redis.call('DEL', KEYS[4] .. familyId)
+				redis.call('SREM', KEYS[7] .. userId, ARGV[1])
+				return 'MISSING'
+			end
+			local issuedAt = string.sub(activeValue, secondSeparator + 1, thirdSeparator - 1)
+			local sessionVersion = string.sub(activeValue, fourthSeparator + 1)
+			if issuedAt == '' or sessionVersion == '' or tonumber(sessionVersion) == nil or tonumber(sessionVersion) < 0 then
+				redis.call('DEL', KEYS[1])
+				redis.call('DEL', KEYS[4] .. familyId)
+				redis.call('SREM', KEYS[7] .. userId, ARGV[1])
+				return 'MISSING'
 			end
 			local revokedAfter = redis.call('GET', KEYS[8] .. userId)
-			if revokedAfter and (issuedAt == '' or tonumber(issuedAt) <= tonumber(revokedAfter)) then
+			if revokedAfter and tonumber(issuedAt) <= tonumber(revokedAfter) then
 				redis.call('DEL', KEYS[1])
 				redis.call('DEL', KEYS[4] .. familyId)
 				redis.call('SREM', KEYS[7] .. userId, ARGV[1])
@@ -62,12 +73,12 @@ public final class RedisRefreshTokenStore implements RefreshTokenStore {
 			end
 			redis.call('DEL', KEYS[1])
 			redis.call('SET', KEYS[2], familyId, 'EX', oldTtl)
-			redis.call('SET', KEYS[3], userId .. '|' .. familyId .. '|' .. issuedAt .. '|' .. ARGV[2], 'EX', tonumber(ARGV[3]))
+			redis.call('SET', KEYS[3], userId .. '|' .. familyId .. '|' .. issuedAt .. '|' .. ARGV[2] .. '|' .. sessionVersion, 'EX', tonumber(ARGV[3]))
 			redis.call('SET', KEYS[4] .. familyId, ARGV[4], 'EX', tonumber(ARGV[3]))
 			redis.call('SREM', KEYS[7] .. userId, ARGV[1])
 			redis.call('SADD', KEYS[7] .. userId, ARGV[4])
 			redis.call('EXPIRE', KEYS[7] .. userId, tonumber(ARGV[3]))
-			return 'ROTATED|' .. userId
+			return 'ROTATED|' .. userId .. '|' .. sessionVersion
 		end
 		local usedFamilyId = redis.call('GET', KEYS[2])
 		if usedFamilyId then
@@ -145,6 +156,7 @@ public final class RedisRefreshTokenStore implements RefreshTokenStore {
 			command.familyId(),
 			Long.toString(command.issuedAt().toEpochMilli()),
 			command.expiresAt().toString(),
+			Long.toString(command.sessionVersion()),
 			command.tokenHash(),
 			Long.toString(seconds(command.ttl())));
 	}
@@ -173,8 +185,17 @@ public final class RedisRefreshTokenStore implements RefreshTokenStore {
 			return RefreshTokenRotationResult.reused();
 		}
 		if (result.startsWith("ROTATED|")) {
-			return RefreshTokenRotationResult.rotated(
-				new UserId(UUID.fromString(result.substring("ROTATED|".length()))));
+			String[] parts = result.split("\\|", -1);
+			if (parts.length == 3 && !parts[1].isBlank() && !parts[2].isBlank()) {
+				try {
+					long sessionVersion = Long.parseLong(parts[2]);
+					if (sessionVersion >= 0) {
+						return RefreshTokenRotationResult.rotated(new UserId(UUID.fromString(parts[1])), sessionVersion);
+					}
+				} catch (IllegalArgumentException ignored) {
+					// A malformed Redis value is an invalid session, never a reason to accept a token.
+				}
+			}
 		}
 		return RefreshTokenRotationResult.missing();
 	}

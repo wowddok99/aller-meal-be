@@ -10,6 +10,7 @@ public record RefreshTokenCommand(
 	String tokenHash,
 	Instant issuedAt,
 	Instant expiresAt,
+	long sessionVersion,
 	Duration ttl
 ) {
 }
