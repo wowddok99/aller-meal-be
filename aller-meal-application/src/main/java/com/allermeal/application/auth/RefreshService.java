@@ -59,7 +59,10 @@ public final class RefreshService {
 			throw new UnauthorizedAccessException();
 		}
 		User user = userRepository.findById(rotation.userId()).orElseThrow(UnauthorizedAccessException::new);
-		if (!canRefresh(user, issuedAt) || user.emailVerificationStatus() != EmailVerificationStatus.VERIFIED) {
+		if (rotation.sessionVersion() == null
+			|| rotation.sessionVersion() != user.sessionVersion()
+			|| !canRefresh(user, issuedAt)
+			|| user.emailVerificationStatus() != EmailVerificationStatus.VERIFIED) {
 			refreshTokenStore.revoke(newTokenHash);
 			throw new UnauthorizedAccessException();
 		}

@@ -63,6 +63,7 @@ public class JpaUserRepository implements UserRepository {
 			user.withdrawalRequestedAt(),
 			user.withdrawalDueAt(),
 			user.personalDataDeletedAt(),
+			user.sessionVersion(),
 			user.timestamps().createdAt(),
 			user.timestamps().updatedAt(),
 			user.version());
@@ -80,6 +81,7 @@ public class JpaUserRepository implements UserRepository {
 			entity.withdrawalRequestedAt(),
 			entity.withdrawalDueAt(),
 			entity.personalDataDeletedAt(),
+			entity.sessionVersion(),
 			new EntityTimestamps(entity.createdAt(), entity.updatedAt()),
 			entity.version());
 	}

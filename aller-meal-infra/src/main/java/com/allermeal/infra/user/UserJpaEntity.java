@@ -52,6 +52,9 @@ class UserJpaEntity implements Persistable<UUID> {
 	@Column(name = "personal_data_deleted_at")
 	private Instant personalDataDeletedAt;
 
+	@Column(name = "session_version", nullable = false)
+	private long sessionVersion;
+
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
@@ -76,6 +79,7 @@ class UserJpaEntity implements Persistable<UUID> {
 		Instant withdrawalRequestedAt,
 		Instant withdrawalDueAt,
 		Instant personalDataDeletedAt,
+		long sessionVersion,
 		Instant createdAt,
 		Instant updatedAt,
 		Long version
@@ -90,6 +94,7 @@ class UserJpaEntity implements Persistable<UUID> {
 		this.withdrawalRequestedAt = withdrawalRequestedAt;
 		this.withdrawalDueAt = withdrawalDueAt;
 		this.personalDataDeletedAt = personalDataDeletedAt;
+		this.sessionVersion = sessionVersion;
 		this.createdAt = createdAt;
 		this.updatedAt = updatedAt;
 		this.version = version;
@@ -143,6 +148,10 @@ class UserJpaEntity implements Persistable<UUID> {
 
 	Instant personalDataDeletedAt() {
 		return personalDataDeletedAt;
+	}
+
+	long sessionVersion() {
+		return sessionVersion;
 	}
 
 	Instant createdAt() {

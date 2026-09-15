@@ -49,6 +49,7 @@ public final class HmacSha256AccessTokenIssuer implements AccessTokenIssuer {
 		payload.put("role", user.role().name());
 		payload.put("status", user.status().name());
 		payload.put("emailVerificationStatus", user.emailVerificationStatus().name());
+		payload.put("sessionVersion", user.sessionVersion());
 		payload.put("exp", expiresAt.getEpochSecond());
 		String body = encodeJson(payload);
 		String signatureInput = header + "." + body;
@@ -71,11 +72,16 @@ public final class HmacSha256AccessTokenIssuer implements AccessTokenIssuer {
 			if (!expiresAt.isAfter(clock.instant())) {
 				throw new UnauthorizedAccessException();
 			}
+			JsonNode sessionVersion = payload.get("sessionVersion");
+			if (sessionVersion == null || !sessionVersion.isIntegralNumber() || sessionVersion.longValue() < 0) {
+				throw new UnauthorizedAccessException();
+			}
 			return new AccessTokenClaims(
 				new UserId(UUID.fromString(payload.get("sub").asText())),
 				UserRole.valueOf(payload.get("role").asText()),
 				UserStatus.valueOf(payload.get("status").asText()),
 				EmailVerificationStatus.valueOf(payload.get("emailVerificationStatus").asText()),
+				sessionVersion.longValue(),
 				expiresAt);
 		} catch (UnauthorizedAccessException exception) {
 			throw exception;

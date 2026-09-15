@@ -139,6 +139,14 @@ public record NotificationRequest(
 		return withStatus(NotificationStatus.CANCELED, attemptCount, null, null, "PERSONAL_DATA_MASKED", null, changedAt);
 	}
 
+	public NotificationRequest cancelForOwnerAccessRestriction(Instant changedAt) {
+		if (!isActive()) {
+			throw new IllegalStateException("활성 알림만 소유자 접근 제한으로 취소할 수 있습니다.");
+		}
+		return withStatus(NotificationStatus.CANCELED, attemptCount, null, null,
+			"OWNER_ACCESS_RESTRICTED", null, changedAt);
+	}
+
 	private NotificationRequest withStatus(
 		NotificationStatus nextStatus,
 		int nextAttemptCount,

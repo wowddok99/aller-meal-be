@@ -11,6 +11,7 @@ import com.allermeal.domain.notification.NotificationStatus;
 import com.allermeal.domain.user.UserId;
 import java.util.List;
 import java.util.Optional;
+import java.time.Instant;
 
 public interface NotificationRequestRepository {
 
@@ -26,6 +27,8 @@ public interface NotificationRequestRepository {
 	);
 
 	NotificationRequest save(NotificationStatus expectedStatus, NotificationRequest request);
+
+	int cancelPendingAndRetryForSuspendedOwner(UserId ownerId, Instant canceledAt);
 
 	NotificationHistoryResult findHistoryByChild(UserId ownerId, ChildProfileId childProfileId, int page, int pageSize);
 

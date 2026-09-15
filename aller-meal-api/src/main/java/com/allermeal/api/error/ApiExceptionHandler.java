@@ -9,10 +9,14 @@ import com.allermeal.application.admin.AdminNotificationReprocessConflictExcepti
 import com.allermeal.application.admin.AdminRecollectionConflictException;
 import com.allermeal.application.admin.InvalidAdminUserRoleChangeException;
 import com.allermeal.application.admin.AdminUserNotFoundException;
+import com.allermeal.application.admin.AdminInvalidUserQueryRequestException;
+import com.allermeal.application.admin.AdminInvalidUserChangeRequestException;
+import com.allermeal.application.admin.AdminUserStateConflictException;
 import com.allermeal.application.account.AccountWithdrawalConflictException;
 import com.allermeal.api.error.response.ApiError;
 import com.allermeal.api.error.response.ApiErrorResponse;
 import com.allermeal.application.auth.DuplicateEmailException;
+import com.allermeal.application.auth.AccountSuspendedException;
 import com.allermeal.application.child.ChildProfileNotFoundException;
 import com.allermeal.application.child.InvalidChildProfileRequestException;
 import com.allermeal.application.child.InvalidChildAllergenRequestException;
@@ -153,6 +157,12 @@ public final class ApiExceptionHandler {
 			"이메일 인증 후 이용해 주세요.", request);
 	}
 
+	@ExceptionHandler(AccountSuspendedException.class)
+	ResponseEntity<ApiErrorResponse> handleAccountSuspended(HttpServletRequest request) {
+		return response(HttpStatus.FORBIDDEN, "ACCOUNT_SUSPENDED",
+			"계정 이용이 제한되었습니다. 문의가 필요하면 고객 지원에 연락해 주세요.", request);
+	}
+
 	@ExceptionHandler(UnauthorizedAccessException.class)
 	ResponseEntity<ApiErrorResponse> handleUnauthorizedAccess(HttpServletRequest request) {
 		return response(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED",
@@ -169,6 +179,22 @@ public final class ApiExceptionHandler {
 	ResponseEntity<ApiErrorResponse> handleAdminUserNotFound(HttpServletRequest request) {
 		return response(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND",
 			"요청한 사용자를 찾을 수 없습니다.", request);
+	}
+
+	@ExceptionHandler(AdminInvalidUserQueryRequestException.class)
+	ResponseEntity<ApiErrorResponse> handleAdminInvalidUserQueryRequest(HttpServletRequest request) {
+		return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "요청 값이 올바르지 않습니다.", request);
+	}
+
+	@ExceptionHandler(AdminInvalidUserChangeRequestException.class)
+	ResponseEntity<ApiErrorResponse> handleAdminInvalidUserChangeRequest(HttpServletRequest request) {
+		return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "요청 값이 올바르지 않습니다.", request);
+	}
+
+	@ExceptionHandler(AdminUserStateConflictException.class)
+	ResponseEntity<ApiErrorResponse> handleAdminUserStateConflict(HttpServletRequest request) {
+		return response(HttpStatus.CONFLICT, "USER_STATE_CONFLICT",
+			"사용자 상태가 변경되어 요청을 처리할 수 없습니다.", request);
 	}
 
 	@ExceptionHandler(InvalidAdminUserRoleChangeException.class)

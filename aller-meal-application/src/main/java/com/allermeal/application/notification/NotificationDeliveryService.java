@@ -54,8 +54,7 @@ public class NotificationDeliveryService {
 		}
 		User user = userRepository.findById(request.ownerId()).orElse(null);
 		if (user == null || user.status() != UserStatus.ACTIVE) {
-			NotificationRequest canceled = request.cancelForPersonalDataMasking(clock.instant());
-			savePersonalDataMaskedCancellation(request, canceled);
+			NotificationRequest canceled = cancelForInactiveOwner(request, user);
 			return new NotificationDeliveryResult(canceled.id(), canceled.status(), canceled.attemptCount());
 		}
 		NotificationRequest sending = request.startSending(clock.instant());
@@ -64,6 +63,9 @@ public class NotificationDeliveryService {
 			.orElse(null);
 		if (lockedSending == null) {
 			return new NotificationDeliveryResult(request.id(), NotificationStatus.CANCELED, request.attemptCount());
+		}
+		if (lockedSending.status() == NotificationStatus.CANCELED) {
+			return new NotificationDeliveryResult(lockedSending.id(), lockedSending.status(), lockedSending.attemptCount());
 		}
 		try {
 			mailSender.send(mailCommand(lockedSending, user));
@@ -78,7 +80,23 @@ public class NotificationDeliveryService {
 		}
 	}
 
-	private void savePersonalDataMaskedCancellation(NotificationRequest request, NotificationRequest canceled) {
+	private NotificationRequest cancelForInactiveOwner(NotificationRequest request, User user) {
+		if (user != null && user.status() == UserStatus.SUSPENDED) {
+			notificationRequestRepository.cancelPendingAndRetryForSuspendedOwner(user.id(), clock.instant());
+			NotificationRequest current = notificationRequestRepository.findById(request.id()).orElse(request);
+			if (!current.isActive()) {
+				return current;
+			}
+			NotificationRequest canceled = current.cancelForOwnerAccessRestriction(clock.instant());
+			saveInactiveOwnerCancellation(current, canceled);
+			return canceled;
+		}
+		NotificationRequest canceled = request.cancelForPersonalDataMasking(clock.instant());
+		saveInactiveOwnerCancellation(request, canceled);
+		return canceled;
+	}
+
+	private void saveInactiveOwnerCancellation(NotificationRequest request, NotificationRequest canceled) {
 		try {
 			notificationRequestRepository.save(request.status(), canceled);
 		} catch (IllegalStateException exception) {

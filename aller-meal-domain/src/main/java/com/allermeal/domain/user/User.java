@@ -16,6 +16,7 @@ public final class User {
 	private final Instant withdrawalRequestedAt;
 	private final Instant withdrawalDueAt;
 	private final Instant personalDataDeletedAt;
+	private final long sessionVersion;
 	private final EntityTimestamps timestamps;
 	private final Long version;
 
@@ -30,6 +31,7 @@ public final class User {
 		Instant withdrawalRequestedAt,
 		Instant withdrawalDueAt,
 		Instant personalDataDeletedAt,
+		long sessionVersion,
 		EntityTimestamps timestamps,
 		Long version
 	) {
@@ -44,6 +46,10 @@ public final class User {
 		this.withdrawalRequestedAt = withdrawalRequestedAt;
 		this.withdrawalDueAt = withdrawalDueAt;
 		this.personalDataDeletedAt = personalDataDeletedAt;
+		if (sessionVersion < 0) {
+			throw new IllegalArgumentException("세션 세대는 0 이상이어야 합니다.");
+		}
+		this.sessionVersion = sessionVersion;
 		this.timestamps = Objects.requireNonNull(timestamps, "사용자 시각 정보는 null일 수 없습니다.");
 		if (version != null && version < 0) {
 			throw new IllegalArgumentException("영속성 version은 0 이상이어야 합니다.");
@@ -70,6 +76,7 @@ public final class User {
 			null,
 			null,
 			null,
+			0,
 			EntityTimestamps.createdAt(createdAt),
 			null);
 	}
@@ -92,6 +99,7 @@ public final class User {
 			null,
 			null,
 			null,
+			0,
 			EntityTimestamps.createdAt(createdAt),
 			null);
 	}
@@ -120,6 +128,7 @@ public final class User {
 			withdrawalRequestedAt,
 			withdrawalDueAt,
 			null,
+			0,
 			timestamps,
 			version);
 	}
@@ -138,6 +147,37 @@ public final class User {
 		EntityTimestamps timestamps,
 		long version
 	) {
+		return restoreFromPersistence(
+			id,
+			encryptedEmail,
+			emailSearchHash,
+			passwordHash,
+			role,
+			status,
+			emailVerificationStatus,
+			withdrawalRequestedAt,
+			withdrawalDueAt,
+			personalDataDeletedAt,
+			0,
+			timestamps,
+			version);
+	}
+
+	public static User restoreFromPersistence(
+		UserId id,
+		EncryptedEmail encryptedEmail,
+		EmailSearchHash emailSearchHash,
+		PasswordHash passwordHash,
+		UserRole role,
+		UserStatus status,
+		EmailVerificationStatus emailVerificationStatus,
+		Instant withdrawalRequestedAt,
+		Instant withdrawalDueAt,
+		Instant personalDataDeletedAt,
+		long sessionVersion,
+		EntityTimestamps timestamps,
+		long version
+	) {
 		return new User(
 			id,
 			encryptedEmail,
@@ -149,6 +189,7 @@ public final class User {
 			withdrawalRequestedAt,
 			withdrawalDueAt,
 			personalDataDeletedAt,
+			sessionVersion,
 			timestamps,
 			version);
 	}
@@ -164,11 +205,10 @@ public final class User {
 	}
 
 	public User promoteToAdmin(Instant changedAt) {
-		if (role == UserRole.ADMIN) {
-			return this;
-		}
-		if (status != UserStatus.ACTIVE) {
-			throw new IllegalStateException("ACTIVE 사용자만 관리자 권한으로 승격할 수 있습니다.");
+		requireRole(UserRole.MEMBER, "MEMBER 사용자만 관리자 권한으로 승격할 수 있습니다.");
+		requireStatus(UserStatus.ACTIVE, "ACTIVE 사용자만 관리자 권한으로 승격할 수 있습니다.");
+		if (emailVerificationStatus != EmailVerificationStatus.VERIFIED) {
+			throw new IllegalStateException("이메일 인증을 완료한 사용자만 관리자 권한으로 승격할 수 있습니다.");
 		}
 		Objects.requireNonNull(changedAt, "변경 시각은 null일 수 없습니다.");
 		if (changedAt.isBefore(timestamps.updatedAt())) {
@@ -185,6 +225,7 @@ public final class User {
 			withdrawalRequestedAt,
 			withdrawalDueAt,
 			personalDataDeletedAt,
+			sessionVersion,
 			new EntityTimestamps(timestamps.createdAt(), changedAt),
 			version);
 	}
@@ -208,6 +249,7 @@ public final class User {
 			withdrawalRequestedAt,
 			withdrawalDueAt,
 			personalDataDeletedAt,
+			sessionVersion,
 			new EntityTimestamps(timestamps.createdAt(), changedAt),
 			version);
 	}
@@ -227,6 +269,32 @@ public final class User {
 			throw new IllegalStateException("탈퇴 유예 기간이 만료되었습니다.");
 		}
 		return withState(UserStatus.ACTIVE, emailVerificationStatus, changedAt, null, null, null);
+	}
+
+	public User suspend(Instant changedAt) {
+		requireRole(UserRole.MEMBER, "MEMBER 사용자만 운영 제한할 수 있습니다.");
+		requireStatus(UserStatus.ACTIVE, "ACTIVE 사용자만 운영 제한할 수 있습니다.");
+		return withState(
+			UserStatus.SUSPENDED,
+			emailVerificationStatus,
+			changedAt,
+			null,
+			null,
+			null,
+			nextSessionVersion());
+	}
+
+	public User unsuspend(Instant changedAt) {
+		requireRole(UserRole.MEMBER, "MEMBER 사용자만 운영 제한을 해제할 수 있습니다.");
+		requireStatus(UserStatus.SUSPENDED, "SUSPENDED 사용자만 운영 제한을 해제할 수 있습니다.");
+		return withState(
+			UserStatus.ACTIVE,
+			emailVerificationStatus,
+			changedAt,
+			null,
+			null,
+			null,
+			nextSessionVersion());
 	}
 
 	public User disable(Instant changedAt) {
@@ -261,6 +329,7 @@ public final class User {
 			withdrawalRequestedAt,
 			withdrawalDueAt,
 			changedAt,
+			sessionVersion,
 			new EntityTimestamps(timestamps.createdAt(), changedAt),
 			version);
 	}
@@ -272,7 +341,7 @@ public final class User {
 	) {
 		return withState(
 			nextStatus, nextEmailVerificationStatus, changedAt,
-			withdrawalRequestedAt, withdrawalDueAt, personalDataDeletedAt);
+			withdrawalRequestedAt, withdrawalDueAt, personalDataDeletedAt, sessionVersion);
 	}
 
 	private User withState(
@@ -282,6 +351,25 @@ public final class User {
 		Instant nextWithdrawalRequestedAt,
 		Instant nextWithdrawalDueAt,
 		Instant nextPersonalDataDeletedAt
+	) {
+		return withState(
+			nextStatus,
+			nextEmailVerificationStatus,
+			changedAt,
+			nextWithdrawalRequestedAt,
+			nextWithdrawalDueAt,
+			nextPersonalDataDeletedAt,
+			sessionVersion);
+	}
+
+	private User withState(
+		UserStatus nextStatus,
+		EmailVerificationStatus nextEmailVerificationStatus,
+		Instant changedAt,
+		Instant nextWithdrawalRequestedAt,
+		Instant nextWithdrawalDueAt,
+		Instant nextPersonalDataDeletedAt,
+		long nextSessionVersion
 	) {
 		Objects.requireNonNull(changedAt, "변경 시각은 null일 수 없습니다.");
 		if (changedAt.isBefore(timestamps.updatedAt())) {
@@ -298,6 +386,7 @@ public final class User {
 			nextWithdrawalRequestedAt,
 			nextWithdrawalDueAt,
 			nextPersonalDataDeletedAt,
+			nextSessionVersion,
 			new EntityTimestamps(timestamps.createdAt(), changedAt),
 			version);
 	}
@@ -305,6 +394,20 @@ public final class User {
 	private void requireStatus(UserStatus requiredStatus, String message) {
 		if (status != requiredStatus) {
 			throw new IllegalStateException(message);
+		}
+	}
+
+	private void requireRole(UserRole requiredRole, String message) {
+		if (role != requiredRole) {
+			throw new IllegalStateException(message);
+		}
+	}
+
+	private long nextSessionVersion() {
+		try {
+			return Math.incrementExact(sessionVersion);
+		} catch (ArithmeticException exception) {
+			throw new IllegalStateException("세션 세대를 더 이상 증가시킬 수 없습니다.", exception);
 		}
 	}
 
@@ -326,9 +429,9 @@ public final class User {
 			}
 			return;
 		}
-		if (status == UserStatus.ACTIVE
+		if ((status == UserStatus.ACTIVE || status == UserStatus.SUSPENDED)
 			&& (withdrawalRequestedAt != null || withdrawalDueAt != null || personalDataDeletedAt != null)) {
-			throw new IllegalArgumentException("활성 사용자는 탈퇴 시각 정보를 가질 수 없습니다.");
+			throw new IllegalArgumentException("활성 또는 운영 제한 사용자는 탈퇴 시각 정보를 가질 수 없습니다.");
 		}
 		if (personalDataDeletedAt != null && withdrawalDueAt != null && personalDataDeletedAt.isBefore(withdrawalDueAt)) {
 			throw new IllegalArgumentException("개인정보 삭제 시각은 탈퇴 유예 종료 시각보다 이전일 수 없습니다.");
@@ -375,6 +478,10 @@ public final class User {
 		return personalDataDeletedAt;
 	}
 
+	public long sessionVersion() {
+		return sessionVersion;
+	}
+
 	public EntityTimestamps timestamps() {
 		return timestamps;
 	}
@@ -392,7 +499,7 @@ public final class User {
 		return "User[id=" + id + ", role=" + role + ", status=" + status
 			+ ", emailVerificationStatus=" + emailVerificationStatus + ", withdrawalRequestedAt="
 			+ withdrawalRequestedAt + ", withdrawalDueAt=" + withdrawalDueAt + ", personalDataDeletedAt="
-			+ personalDataDeletedAt + ", timestamps=" + timestamps
+			+ personalDataDeletedAt + ", sessionVersion=" + sessionVersion + ", timestamps=" + timestamps
 			+ ", version=" + version + "]";
 	}
 }
