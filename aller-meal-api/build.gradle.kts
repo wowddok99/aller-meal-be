@@ -13,4 +13,5 @@ dependencies {
 	implementation("org.springframework:spring-tx")
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
 	runtimeOnly(project(":aller-meal-infra"))
+	testImplementation("org.springframework:spring-test")
 }

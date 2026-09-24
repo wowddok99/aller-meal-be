@@ -15,6 +15,7 @@ public final class User {
 	private final EmailVerificationStatus emailVerificationStatus;
 	private final Instant withdrawalRequestedAt;
 	private final Instant withdrawalDueAt;
+	private final Integer withdrawalMaskedNotificationCount;
 	private final Instant personalDataDeletedAt;
 	private final long sessionVersion;
 	private final EntityTimestamps timestamps;
@@ -35,6 +36,39 @@ public final class User {
 		EntityTimestamps timestamps,
 		Long version
 	) {
+		this(
+			id,
+			encryptedEmail,
+			emailSearchHash,
+			passwordHash,
+			role,
+			status,
+			emailVerificationStatus,
+			withdrawalRequestedAt,
+			withdrawalDueAt,
+			status == UserStatus.WITHDRAWAL_PENDING ? 0 : null,
+			personalDataDeletedAt,
+			sessionVersion,
+			timestamps,
+			version);
+	}
+
+	private User(
+		UserId id,
+		EncryptedEmail encryptedEmail,
+		EmailSearchHash emailSearchHash,
+		PasswordHash passwordHash,
+		UserRole role,
+		UserStatus status,
+		EmailVerificationStatus emailVerificationStatus,
+		Instant withdrawalRequestedAt,
+		Instant withdrawalDueAt,
+		Integer withdrawalMaskedNotificationCount,
+		Instant personalDataDeletedAt,
+		long sessionVersion,
+		EntityTimestamps timestamps,
+		Long version
+	) {
 		this.id = Objects.requireNonNull(id, "사용자 ID는 null일 수 없습니다.");
 		this.encryptedEmail = Objects.requireNonNull(encryptedEmail, "암호화 이메일은 null일 수 없습니다.");
 		this.emailSearchHash = Objects.requireNonNull(emailSearchHash, "이메일 검색 해시는 null일 수 없습니다.");
@@ -45,6 +79,7 @@ public final class User {
 			emailVerificationStatus, "이메일 인증 상태는 null일 수 없습니다.");
 		this.withdrawalRequestedAt = withdrawalRequestedAt;
 		this.withdrawalDueAt = withdrawalDueAt;
+		this.withdrawalMaskedNotificationCount = withdrawalMaskedNotificationCount;
 		this.personalDataDeletedAt = personalDataDeletedAt;
 		if (sessionVersion < 0) {
 			throw new IllegalArgumentException("세션 세대는 0 이상이어야 합니다.");
@@ -54,7 +89,12 @@ public final class User {
 		if (version != null && version < 0) {
 			throw new IllegalArgumentException("영속성 version은 0 이상이어야 합니다.");
 		}
-		validateWithdrawalFields(status, withdrawalRequestedAt, withdrawalDueAt, personalDataDeletedAt);
+		validateWithdrawalFields(
+			status,
+			withdrawalRequestedAt,
+			withdrawalDueAt,
+			withdrawalMaskedNotificationCount,
+			personalDataDeletedAt);
 		this.version = version;
 	}
 
@@ -178,6 +218,39 @@ public final class User {
 		EntityTimestamps timestamps,
 		long version
 	) {
+		return restoreFromPersistence(
+			id,
+			encryptedEmail,
+			emailSearchHash,
+			passwordHash,
+			role,
+			status,
+			emailVerificationStatus,
+			withdrawalRequestedAt,
+			withdrawalDueAt,
+			status == UserStatus.WITHDRAWAL_PENDING ? 0 : null,
+			personalDataDeletedAt,
+			sessionVersion,
+			timestamps,
+			version);
+	}
+
+	public static User restoreFromPersistence(
+		UserId id,
+		EncryptedEmail encryptedEmail,
+		EmailSearchHash emailSearchHash,
+		PasswordHash passwordHash,
+		UserRole role,
+		UserStatus status,
+		EmailVerificationStatus emailVerificationStatus,
+		Instant withdrawalRequestedAt,
+		Instant withdrawalDueAt,
+		Integer withdrawalMaskedNotificationCount,
+		Instant personalDataDeletedAt,
+		long sessionVersion,
+		EntityTimestamps timestamps,
+		long version
+	) {
 		return new User(
 			id,
 			encryptedEmail,
@@ -188,6 +261,7 @@ public final class User {
 			emailVerificationStatus,
 			withdrawalRequestedAt,
 			withdrawalDueAt,
+			withdrawalMaskedNotificationCount,
 			personalDataDeletedAt,
 			sessionVersion,
 			timestamps,
@@ -255,12 +329,26 @@ public final class User {
 	}
 
 	public User requestWithdrawal(Instant changedAt, Instant withdrawalDueAt) {
+		return requestWithdrawal(changedAt, withdrawalDueAt, 0);
+	}
+
+	public User requestWithdrawal(Instant changedAt, Instant withdrawalDueAt, int maskedNotificationCount) {
 		requireStatus(UserStatus.ACTIVE, "ACTIVE 사용자만 탈퇴를 요청할 수 있습니다.");
 		Objects.requireNonNull(withdrawalDueAt, "탈퇴 유예 종료 시각은 null일 수 없습니다.");
 		if (!withdrawalDueAt.isAfter(changedAt)) {
 			throw new IllegalArgumentException("탈퇴 유예 종료 시각은 요청 시각보다 이후여야 합니다.");
 		}
-		return withState(UserStatus.WITHDRAWAL_PENDING, emailVerificationStatus, changedAt, changedAt, withdrawalDueAt, null);
+		if (maskedNotificationCount < 0) {
+			throw new IllegalArgumentException("마스킹 알림 수는 0 이상이어야 합니다.");
+		}
+		return withState(
+			UserStatus.WITHDRAWAL_PENDING,
+			emailVerificationStatus,
+			changedAt,
+			changedAt,
+			withdrawalDueAt,
+			maskedNotificationCount,
+			null);
 	}
 
 	public User cancelWithdrawal(Instant changedAt) {
@@ -281,6 +369,7 @@ public final class User {
 			null,
 			null,
 			null,
+			null,
 			nextSessionVersion());
 	}
 
@@ -291,6 +380,7 @@ public final class User {
 			UserStatus.ACTIVE,
 			emailVerificationStatus,
 			changedAt,
+			null,
 			null,
 			null,
 			null,
@@ -341,7 +431,11 @@ public final class User {
 	) {
 		return withState(
 			nextStatus, nextEmailVerificationStatus, changedAt,
-			withdrawalRequestedAt, withdrawalDueAt, personalDataDeletedAt, sessionVersion);
+			withdrawalRequestedAt,
+			withdrawalDueAt,
+			nextStatus == UserStatus.WITHDRAWAL_PENDING ? withdrawalMaskedNotificationCount : null,
+			personalDataDeletedAt,
+			sessionVersion);
 	}
 
 	private User withState(
@@ -358,6 +452,7 @@ public final class User {
 			changedAt,
 			nextWithdrawalRequestedAt,
 			nextWithdrawalDueAt,
+			nextStatus == UserStatus.WITHDRAWAL_PENDING ? withdrawalMaskedNotificationCount : null,
 			nextPersonalDataDeletedAt,
 			sessionVersion);
 	}
@@ -368,6 +463,27 @@ public final class User {
 		Instant changedAt,
 		Instant nextWithdrawalRequestedAt,
 		Instant nextWithdrawalDueAt,
+		Integer nextWithdrawalMaskedNotificationCount,
+		Instant nextPersonalDataDeletedAt
+	) {
+		return withState(
+			nextStatus,
+			nextEmailVerificationStatus,
+			changedAt,
+			nextWithdrawalRequestedAt,
+			nextWithdrawalDueAt,
+			nextWithdrawalMaskedNotificationCount,
+			nextPersonalDataDeletedAt,
+			sessionVersion);
+	}
+
+	private User withState(
+		UserStatus nextStatus,
+		EmailVerificationStatus nextEmailVerificationStatus,
+		Instant changedAt,
+		Instant nextWithdrawalRequestedAt,
+		Instant nextWithdrawalDueAt,
+		Integer nextWithdrawalMaskedNotificationCount,
 		Instant nextPersonalDataDeletedAt,
 		long nextSessionVersion
 	) {
@@ -385,6 +501,7 @@ public final class User {
 			nextEmailVerificationStatus,
 			nextWithdrawalRequestedAt,
 			nextWithdrawalDueAt,
+			nextWithdrawalMaskedNotificationCount,
 			nextPersonalDataDeletedAt,
 			nextSessionVersion,
 			new EntityTimestamps(timestamps.createdAt(), changedAt),
@@ -415,8 +532,12 @@ public final class User {
 		UserStatus status,
 		Instant withdrawalRequestedAt,
 		Instant withdrawalDueAt,
+		Integer withdrawalMaskedNotificationCount,
 		Instant personalDataDeletedAt
 	) {
+		if (withdrawalMaskedNotificationCount != null && withdrawalMaskedNotificationCount < 0) {
+			throw new IllegalArgumentException("마스킹 알림 수는 0 이상이어야 합니다.");
+		}
 		if (status == UserStatus.WITHDRAWAL_PENDING) {
 			if (withdrawalRequestedAt == null || withdrawalDueAt == null) {
 				throw new IllegalArgumentException("탈퇴 유예 사용자는 요청 시각과 유예 종료 시각이 필요합니다.");
@@ -427,11 +548,18 @@ public final class User {
 			if (personalDataDeletedAt != null) {
 				throw new IllegalArgumentException("탈퇴 유예 사용자는 개인정보 삭제 시각을 가질 수 없습니다.");
 			}
+			if (withdrawalMaskedNotificationCount == null) {
+				throw new IllegalArgumentException("탈퇴 유예 사용자는 마스킹 알림 수가 필요합니다.");
+			}
 			return;
 		}
 		if ((status == UserStatus.ACTIVE || status == UserStatus.SUSPENDED)
-			&& (withdrawalRequestedAt != null || withdrawalDueAt != null || personalDataDeletedAt != null)) {
+			&& (withdrawalRequestedAt != null || withdrawalDueAt != null
+				|| withdrawalMaskedNotificationCount != null || personalDataDeletedAt != null)) {
 			throw new IllegalArgumentException("활성 또는 운영 제한 사용자는 탈퇴 시각 정보를 가질 수 없습니다.");
+		}
+		if (status == UserStatus.DISABLED && withdrawalMaskedNotificationCount != null) {
+			throw new IllegalArgumentException("비활성 사용자는 마스킹 알림 수를 가질 수 없습니다.");
 		}
 		if (personalDataDeletedAt != null && withdrawalDueAt != null && personalDataDeletedAt.isBefore(withdrawalDueAt)) {
 			throw new IllegalArgumentException("개인정보 삭제 시각은 탈퇴 유예 종료 시각보다 이전일 수 없습니다.");
@@ -474,6 +602,10 @@ public final class User {
 		return withdrawalDueAt;
 	}
 
+	public int withdrawalMaskedNotificationCount() {
+		return Objects.requireNonNull(withdrawalMaskedNotificationCount, "마스킹 알림 수가 없습니다.");
+	}
+
 	public Instant personalDataDeletedAt() {
 		return personalDataDeletedAt;
 	}
@@ -499,7 +631,8 @@ public final class User {
 		return "User[id=" + id + ", role=" + role + ", status=" + status
 			+ ", emailVerificationStatus=" + emailVerificationStatus + ", withdrawalRequestedAt="
 			+ withdrawalRequestedAt + ", withdrawalDueAt=" + withdrawalDueAt + ", personalDataDeletedAt="
-			+ personalDataDeletedAt + ", sessionVersion=" + sessionVersion + ", timestamps=" + timestamps
+			+ personalDataDeletedAt + ", withdrawalMaskedNotificationCount=" + withdrawalMaskedNotificationCount
+			+ ", sessionVersion=" + sessionVersion + ", timestamps=" + timestamps
 			+ ", version=" + version + "]";
 	}
 }
