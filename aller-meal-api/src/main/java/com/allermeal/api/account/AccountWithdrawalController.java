@@ -7,7 +7,9 @@ import com.allermeal.domain.user.User;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Objects;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -22,6 +24,14 @@ public class AccountWithdrawalController {
 	public AccountWithdrawalController(AccountWithdrawalService withdrawalService) {
 		this.withdrawalService = Objects.requireNonNull(
 			withdrawalService, "AccountWithdrawalService는 null일 수 없습니다.");
+	}
+
+	@GetMapping
+	public ResponseEntity<AccountWithdrawalResponse> findWithdrawal(HttpServletRequest request) {
+		return withdrawalService.findWithdrawal(currentUser(request).id())
+			.map(AccountWithdrawalResponse::from)
+			.map(ResponseEntity::ok)
+			.orElseGet(() -> ResponseEntity.noContent().build());
 	}
 
 	@PostMapping

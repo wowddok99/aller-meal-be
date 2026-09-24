@@ -75,6 +75,7 @@ public class OpenApiConfiguration {
 		Map.entry("PersonalizedMealController#findDaily", "getPersonalizedDailyMeal"),
 		Map.entry("PersonalizedMealController#findWeekly", "getPersonalizedWeeklyMeals"),
 		Map.entry("NotificationHistoryController#findByChild", "getChildNotificationHistory"),
+		Map.entry("AccountWithdrawalController#findWithdrawal", "getAccountWithdrawal"),
 		Map.entry("AccountWithdrawalController#requestWithdrawal", "requestAccountWithdrawal"),
 		Map.entry("AccountWithdrawalController#cancelWithdrawal", "cancelAccountWithdrawal"),
 		Map.entry("AdminCollectionFailureController#findFailedCollectionJobs", "listFailedCollectionJobs"),
@@ -163,6 +164,7 @@ public class OpenApiConfiguration {
 			addTraceIdParameter(operation);
 			addEndpointErrorResponses(operation, handlerMethod, contractKey, authenticated, csrfRequired);
 			if (isMealQuery(contractKey)) addMealAcceptedResponse(operation);
+			if (contractKey.equals("AccountWithdrawalController#findWithdrawal")) addWithdrawalNotFoundResponse(operation);
 			if (writesAuthenticationCookies(contractKey)) {
 				addSetCookieResponseHeader(operation, "access_token, refresh_token, csrf_token 쿠키를 각각 Set-Cookie 헤더로 설정합니다.");
 			}
@@ -281,6 +283,11 @@ public class OpenApiConfiguration {
 			.content(readyResponse.getContent()).addHeaderObject(RETRY_AFTER_HEADER, new Header()
 				.description("재조회까지 기다릴 시간(초)입니다.").schema(new IntegerSchema().minimum(BigDecimal.ONE).example(3)));
 		operation.getResponses().addApiResponse("202", acceptedResponse);
+	}
+
+	private void addWithdrawalNotFoundResponse(Operation operation) {
+		operation.getResponses().addApiResponse("204", new ApiResponse()
+			.description("진행 중인 탈퇴 예약이 없습니다."));
 	}
 
 	private void addSetCookieResponseHeader(Operation operation, String description) {

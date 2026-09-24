@@ -49,6 +49,9 @@ class UserJpaEntity implements Persistable<UUID> {
 	@Column(name = "withdrawal_due_at")
 	private Instant withdrawalDueAt;
 
+	@Column(name = "withdrawal_masked_notification_count")
+	private Integer withdrawalMaskedNotificationCount;
+
 	@Column(name = "personal_data_deleted_at")
 	private Instant personalDataDeletedAt;
 
@@ -78,6 +81,7 @@ class UserJpaEntity implements Persistable<UUID> {
 		EmailVerificationStatus emailVerificationStatus,
 		Instant withdrawalRequestedAt,
 		Instant withdrawalDueAt,
+		Integer withdrawalMaskedNotificationCount,
 		Instant personalDataDeletedAt,
 		long sessionVersion,
 		Instant createdAt,
@@ -93,6 +97,7 @@ class UserJpaEntity implements Persistable<UUID> {
 		this.emailVerificationStatus = emailVerificationStatus;
 		this.withdrawalRequestedAt = withdrawalRequestedAt;
 		this.withdrawalDueAt = withdrawalDueAt;
+		this.withdrawalMaskedNotificationCount = withdrawalMaskedNotificationCount;
 		this.personalDataDeletedAt = personalDataDeletedAt;
 		this.sessionVersion = sessionVersion;
 		this.createdAt = createdAt;
@@ -144,6 +149,10 @@ class UserJpaEntity implements Persistable<UUID> {
 
 	Instant withdrawalDueAt() {
 		return withdrawalDueAt;
+	}
+
+	Integer withdrawalMaskedNotificationCount() {
+		return withdrawalMaskedNotificationCount;
 	}
 
 	Instant personalDataDeletedAt() {

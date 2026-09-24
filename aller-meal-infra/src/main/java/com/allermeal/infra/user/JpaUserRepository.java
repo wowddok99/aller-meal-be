@@ -9,6 +9,7 @@ import com.allermeal.domain.user.PasswordHash;
 import com.allermeal.domain.user.User;
 import com.allermeal.domain.user.UserId;
 import com.allermeal.domain.user.UserRole;
+import com.allermeal.domain.user.UserStatus;
 import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
@@ -62,6 +63,9 @@ public class JpaUserRepository implements UserRepository {
 			user.emailVerificationStatus(),
 			user.withdrawalRequestedAt(),
 			user.withdrawalDueAt(),
+			user.status() == UserStatus.WITHDRAWAL_PENDING
+				? user.withdrawalMaskedNotificationCount()
+				: null,
 			user.personalDataDeletedAt(),
 			user.sessionVersion(),
 			user.timestamps().createdAt(),
@@ -80,6 +84,7 @@ public class JpaUserRepository implements UserRepository {
 			entity.emailVerificationStatus(),
 			entity.withdrawalRequestedAt(),
 			entity.withdrawalDueAt(),
+			entity.withdrawalMaskedNotificationCount(),
 			entity.personalDataDeletedAt(),
 			entity.sessionVersion(),
 			new EntityTimestamps(entity.createdAt(), entity.updatedAt()),

@@ -5,10 +5,12 @@ import com.allermeal.application.port.out.AccountWithdrawalPrivacyRepository;
 import com.allermeal.application.port.out.UserRepository;
 import com.allermeal.domain.user.User;
 import com.allermeal.domain.user.UserId;
+import com.allermeal.domain.user.UserStatus;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Optional;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,11 +38,24 @@ public class AccountWithdrawalService {
 		Objects.requireNonNull(userId, "사용자 ID는 null일 수 없습니다.");
 		User user = userRepository.findById(userId).orElseThrow(UnauthorizedAccessException::new);
 		Instant now = clock.instant();
-		User pending = user.requestWithdrawal(now, now.plus(WITHDRAWAL_GRACE_PERIOD));
-		User saved = userRepository.save(pending);
-		int maskedNotificationCount = privacyRepository.maskNotificationPersonalData(saved.id(), now);
-		return new AccountWithdrawalResult(
-			saved.id(), saved.withdrawalRequestedAt(), saved.withdrawalDueAt(), maskedNotificationCount);
+		try {
+			int maskedNotificationCount = privacyRepository.maskNotificationPersonalData(user.id(), now);
+			User pending = user.requestWithdrawal(
+				now, now.plus(WITHDRAWAL_GRACE_PERIOD), maskedNotificationCount);
+			return toResult(userRepository.save(pending));
+		} catch (IllegalStateException | OptimisticLockingFailureException exception) {
+			throw new AccountWithdrawalConflictException();
+		}
+	}
+
+	@Transactional(readOnly = true)
+	public Optional<AccountWithdrawalResult> findWithdrawal(UserId userId) {
+		Objects.requireNonNull(userId, "사용자 ID는 null일 수 없습니다.");
+		User user = userRepository.findById(userId).orElseThrow(UnauthorizedAccessException::new);
+		if (user.status() != UserStatus.WITHDRAWAL_PENDING) {
+			return Optional.empty();
+		}
+		return Optional.of(toResult(user));
 	}
 
 	@Transactional
@@ -52,6 +67,11 @@ public class AccountWithdrawalService {
 		} catch (IllegalStateException | OptimisticLockingFailureException exception) {
 			throw new AccountWithdrawalConflictException();
 		}
+	}
+
+	private AccountWithdrawalResult toResult(User user) {
+		return new AccountWithdrawalResult(
+			user.id(), user.withdrawalRequestedAt(), user.withdrawalDueAt(), user.withdrawalMaskedNotificationCount());
 	}
 
 }

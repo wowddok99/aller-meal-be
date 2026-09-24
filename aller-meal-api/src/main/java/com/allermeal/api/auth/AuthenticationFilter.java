@@ -102,8 +102,10 @@ public final class AuthenticationFilter extends OncePerRequestFilter {
 			return true;
 		}
 		return status == UserStatus.WITHDRAWAL_PENDING
-			&& request.getMethod().equals("DELETE")
-			&& request.getRequestURI().equals("/api/v1/account/withdrawal");
+			&& request.getRequestURI().equals("/api/v1/account/withdrawal")
+			&& (request.getMethod().equals("GET")
+				|| request.getMethod().equals("POST")
+				|| request.getMethod().equals("DELETE"));
 	}
 
 	private Optional<String> resolveToken(HttpServletRequest request) {
