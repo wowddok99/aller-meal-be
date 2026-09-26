@@ -2,6 +2,9 @@ package com.allermeal.infra.collection;
 
 import com.allermeal.application.admin.AdminFailedCollectionJobItemResult;
 import com.allermeal.application.admin.AdminFailedCollectionJobPageResult;
+import com.allermeal.application.admin.AdminCollectionJobItemResult;
+import com.allermeal.application.admin.AdminCollectionJobPageResult;
+import com.allermeal.application.admin.AdminCollectionJobQuery;
 import com.allermeal.application.port.out.CollectionJobRepository;
 import com.allermeal.application.port.out.ConcurrentStateChangeException;
 import com.allermeal.domain.collection.CollectionJob;
@@ -141,6 +144,70 @@ public class JdbcCollectionJobRepository implements CollectionJobRepository {
 			.query(this::mapFailedItem)
 			.list();
 		return new AdminFailedCollectionJobPageResult(items, page, pageSize, totalCount);
+	}
+
+	@Override
+	public AdminCollectionJobPageResult findAdminPage(AdminCollectionJobQuery query) {
+		int offset = Math.multiplyExact(query.page() - 1, query.pageSize());
+		Map<String, Object> parameters = adminParameters(query);
+		String predicate = adminPredicate(query);
+		long totalCount = jdbcClient.sql("SELECT count(*) FROM collection_jobs job JOIN schools school ON school.school_id = job.school_id WHERE " + predicate)
+			.params(parameters).query(Long.class).single();
+		var items = jdbcClient.sql("""
+				SELECT job.collection_job_id, job.school_id, school.name AS school_name, job.meal_date, job.meal_type,
+				       job.status, job.response_time_millis, job.collection_duration_millis, job.lease_until,
+				       job.raw_object_id, job.failure_code, job.failure_message, job.created_at, job.updated_at
+				FROM collection_jobs job
+				JOIN schools school ON school.school_id = job.school_id
+				WHERE""" + " " + predicate + " " + """
+				ORDER BY job.updated_at DESC, job.collection_job_id DESC
+				LIMIT :limit OFFSET :offset
+				""")
+			.params(parameters).param("limit", query.pageSize()).param("offset", offset)
+			.query(this::mapAdminItem).list();
+		return new AdminCollectionJobPageResult(items, query.page(), query.pageSize(), totalCount);
+	}
+
+	private String adminPredicate(AdminCollectionJobQuery query) {
+		StringBuilder predicate = new StringBuilder("1 = 1");
+		if (query.status() != null) predicate.append(" AND job.status = :status");
+		if (query.schoolId() != null) predicate.append(" AND job.school_id = :schoolId");
+		if (query.mealDate() != null) predicate.append(" AND job.meal_date = :mealDate");
+		if (query.mealType() != null) predicate.append(" AND job.meal_type = :mealType");
+		if (query.query() != null) predicate.append(" AND school.name ILIKE :query ESCAPE '\\'");
+		return predicate.toString();
+	}
+
+	private Map<String, Object> adminParameters(AdminCollectionJobQuery query) {
+		Map<String, Object> parameters = new HashMap<>();
+		if (query.status() != null) parameters.put("status", query.status().name());
+		if (query.schoolId() != null) parameters.put("schoolId", query.schoolId());
+		if (query.mealDate() != null) parameters.put("mealDate", query.mealDate());
+		if (query.mealType() != null) parameters.put("mealType", query.mealType().name());
+		if (query.query() != null) parameters.put("query", "%" + escapeLike(query.query()) + "%");
+		return parameters;
+	}
+
+	private AdminCollectionJobItemResult mapAdminItem(ResultSet resultSet, int rowNum) throws SQLException {
+		return new AdminCollectionJobItemResult(
+			new CollectionJobId(resultSet.getObject("collection_job_id", UUID.class)),
+			new SchoolId(resultSet.getObject("school_id", UUID.class)),
+			resultSet.getString("school_name"),
+			resultSet.getObject("meal_date", LocalDate.class),
+			MealType.valueOf(resultSet.getString("meal_type")),
+			CollectionJobStatus.valueOf(resultSet.getString("status")),
+			resultSet.getObject("response_time_millis", Long.class),
+			resultSet.getObject("collection_duration_millis", Long.class),
+			toInstant(resultSet.getObject("lease_until", OffsetDateTime.class)),
+			resultSet.getObject("raw_object_id", UUID.class),
+			resultSet.getString("failure_code"),
+			resultSet.getString("failure_message"),
+			resultSet.getObject("created_at", OffsetDateTime.class).toInstant(),
+			resultSet.getObject("updated_at", OffsetDateTime.class).toInstant());
+	}
+
+	private String escapeLike(String value) {
+		return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
 	}
 
 	private Map<String, Object> parameters(CollectionJob job) {

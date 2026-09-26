@@ -3,6 +3,8 @@ package com.allermeal.application.port.out;
 import com.allermeal.application.port.out.result.NotificationRequestSaveResult;
 import com.allermeal.application.port.out.result.PendingNotificationTargetResult;
 import com.allermeal.application.admin.AdminFailedNotificationPageResult;
+import com.allermeal.application.admin.AdminNotificationRequestPageResult;
+import com.allermeal.application.admin.AdminNotificationRequestQuery;
 import com.allermeal.application.notification.NotificationHistoryResult;
 import com.allermeal.domain.child.ChildProfileId;
 import com.allermeal.domain.notification.NotificationRequest;
@@ -33,4 +35,6 @@ public interface NotificationRequestRepository {
 	NotificationHistoryResult findHistoryByChild(UserId ownerId, ChildProfileId childProfileId, int page, int pageSize);
 
 	AdminFailedNotificationPageResult findFailed(int page, int pageSize);
+
+	AdminNotificationRequestPageResult findAdminPage(AdminNotificationRequestQuery query);
 }

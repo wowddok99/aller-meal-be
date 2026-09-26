@@ -9,6 +9,10 @@ import com.allermeal.application.port.out.command.AdminAuditLogCommand;
 import com.allermeal.application.port.out.command.AdminNotificationReprocessRequestCommand;
 import com.allermeal.application.port.out.result.AdminNotificationReprocessRequestResult;
 import com.allermeal.domain.outbox.OutboxEvent;
+import com.allermeal.domain.outbox.OutboxEventStatus;
+import com.allermeal.domain.notification.NotificationChannel;
+import com.allermeal.domain.notification.NotificationReason;
+import com.allermeal.domain.notification.NotificationStatus;
 import com.allermeal.domain.user.User;
 import com.allermeal.domain.user.UserRole;
 import java.time.Clock;
@@ -55,6 +59,34 @@ public class AdminNotificationFailureService {
 		requireAdmin(actor);
 		validatePage(page, pageSize);
 		return deadLetterEventRepository.findRecent(page, pageSize);
+	}
+
+	public AdminOutboxEventPageResult findOutboxEvents(
+		User actor, int page, int pageSize, String status, String eventType, String query
+	) {
+		requireAdmin(actor);
+		validatePage(page, pageSize);
+		return outboxEventRepository.findAdminPage(new AdminOutboxEventQuery(
+			page, pageSize, parseEnum(status, OutboxEventStatus.class), normalizeOptional(eventType), normalizeQuery(query)));
+	}
+
+	public AdminDeadLetterEventPageResult findDeadLetterEvents(
+		User actor, int page, int pageSize, String status, String eventType, String query
+	) {
+		requireAdmin(actor);
+		validatePage(page, pageSize);
+		return deadLetterEventRepository.findAdminPage(new AdminDeadLetterEventQuery(
+			page, pageSize, parseEnum(status, AdminDeadLetterEventStatus.class), normalizeOptional(eventType), normalizeQuery(query)));
+	}
+
+	public AdminNotificationRequestPageResult findNotificationRequests(
+		User actor, int page, int pageSize, String status, String channel, String reason, String query
+	) {
+		requireAdmin(actor);
+		validatePage(page, pageSize);
+		return notificationRequestRepository.findAdminPage(new AdminNotificationRequestQuery(
+			page, pageSize, parseEnum(status, NotificationStatus.class), parseEnum(channel, NotificationChannel.class),
+			parseEnum(reason, NotificationReason.class), normalizeNotificationId(query)));
 	}
 
 	@Transactional
@@ -120,6 +152,36 @@ public class AdminNotificationFailureService {
 	private void validatePage(int page, int pageSize) {
 		if (page < 1 || pageSize < 1 || pageSize > MAX_PAGE_SIZE
 			|| (long) page > ((long) Integer.MAX_VALUE / pageSize) + 1) {
+			throw new AdminInvalidNotificationFailureRequestException();
+		}
+	}
+
+	private <T extends Enum<T>> T parseEnum(String value, Class<T> type) {
+		if (value == null || value.isBlank()) return null;
+		try {
+			return Enum.valueOf(type, value.trim());
+		} catch (IllegalArgumentException exception) {
+			throw new AdminInvalidNotificationFailureRequestException();
+		}
+	}
+
+	private String normalizeOptional(String value) {
+		if (value == null || value.isBlank()) return null;
+		String normalized = value.trim();
+		if (normalized.length() > 100) throw new AdminInvalidNotificationFailureRequestException();
+		return normalized;
+	}
+
+	private String normalizeQuery(String value) {
+		return normalizeOptional(value);
+	}
+
+	private String normalizeNotificationId(String value) {
+		String normalized = normalizeOptional(value);
+		if (normalized == null) return null;
+		try {
+			return UUID.fromString(normalized).toString();
+		} catch (IllegalArgumentException exception) {
 			throw new AdminInvalidNotificationFailureRequestException();
 		}
 	}

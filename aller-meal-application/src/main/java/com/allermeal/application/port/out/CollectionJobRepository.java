@@ -1,6 +1,8 @@
 package com.allermeal.application.port.out;
 
 import com.allermeal.application.admin.AdminFailedCollectionJobPageResult;
+import com.allermeal.application.admin.AdminCollectionJobPageResult;
+import com.allermeal.application.admin.AdminCollectionJobQuery;
 import com.allermeal.domain.collection.CollectionJob;
 import com.allermeal.domain.collection.CollectionJobId;
 import com.allermeal.domain.collection.CollectionJobStatus;
@@ -16,4 +18,6 @@ public interface CollectionJobRepository {
 	Optional<CollectionJob> findById(CollectionJobId collectionJobId);
 
 	AdminFailedCollectionJobPageResult findFailed(int page, int pageSize);
+
+	AdminCollectionJobPageResult findAdminPage(AdminCollectionJobQuery query);
 }

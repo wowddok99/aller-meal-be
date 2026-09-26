@@ -14,4 +14,6 @@ dependencies {
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
 	runtimeOnly(project(":aller-meal-infra"))
 	testImplementation("org.springframework:spring-test")
+	testImplementation("org.springframework.boot:spring-boot-starter-test")
+	testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
 }

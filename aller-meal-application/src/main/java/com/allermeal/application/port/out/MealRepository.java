@@ -2,6 +2,8 @@ package com.allermeal.application.port.out;
 
 import com.allermeal.application.port.out.result.MealSaveResult;
 import com.allermeal.application.port.out.result.MealQueryResult;
+import com.allermeal.application.admin.AdminMealItemLabelingPageResult;
+import com.allermeal.application.admin.AdminMealItemLabelingQuery;
 import com.allermeal.domain.meal.Meal;
 import com.allermeal.domain.meal.MealId;
 import com.allermeal.domain.meal.MealItemId;
@@ -25,4 +27,6 @@ public interface MealRepository {
 	Map<MealItemId, List<Integer>> findAllergenCodesByMealIds(List<MealId> mealIds);
 
 	boolean saveAllergenLabels(Meal meal, Map<MealItemId, List<Integer>> allergenCodesByItemId);
+
+	AdminMealItemLabelingPageResult findAdminMealItemLabelings(AdminMealItemLabelingQuery query);
 }
