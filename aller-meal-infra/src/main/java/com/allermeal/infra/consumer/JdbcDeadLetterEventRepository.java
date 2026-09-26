@@ -3,6 +3,7 @@ package com.allermeal.infra.consumer;
 import com.allermeal.application.admin.AdminDeadLetterEventItemResult;
 import com.allermeal.application.admin.AdminDeadLetterEventPageResult;
 import com.allermeal.application.admin.AdminDeadLetterEventStatus;
+import com.allermeal.application.admin.AdminDeadLetterEventQuery;
 import com.allermeal.application.port.out.DeadLetterEventRepository;
 import com.allermeal.application.port.out.command.DeadLetterEventCommand;
 import com.allermeal.domain.user.UserId;
@@ -11,6 +12,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -65,6 +67,43 @@ public class JdbcDeadLetterEventRepository implements DeadLetterEventRepository 
 			.query(this::mapItem)
 			.list();
 		return new AdminDeadLetterEventPageResult(items, page, pageSize, totalCount);
+	}
+
+	@Override
+	public AdminDeadLetterEventPageResult findAdminPage(AdminDeadLetterEventQuery query) {
+		int offset = offset(query.page(), query.pageSize());
+		String predicate = adminPredicate(query);
+		Map<String, Object> parameters = adminParameters(query);
+		long totalCount = jdbcClient.sql("SELECT count(*) FROM dead_letter_events WHERE " + predicate)
+			.params(parameters).query(Long.class).single();
+		List<AdminDeadLetterEventItemResult> items = jdbcClient.sql("""
+				SELECT dead_letter_event_id, message_id, event_type, payload, retry_count,
+				       status, reprocessed_by_user_id, reprocessed_at, created_at, updated_at
+				FROM dead_letter_events WHERE""" + " " + predicate + " " + """
+				ORDER BY updated_at DESC, dead_letter_event_id DESC LIMIT :limit OFFSET :offset
+				""").params(parameters).param("limit", query.pageSize()).param("offset", offset)
+			.query(this::mapItem).list();
+		return new AdminDeadLetterEventPageResult(items, query.page(), query.pageSize(), totalCount);
+	}
+
+	private String adminPredicate(AdminDeadLetterEventQuery query) {
+		StringBuilder predicate = new StringBuilder("1 = 1");
+		if (query.status() != null) predicate.append(" AND status = :status");
+		if (query.eventType() != null) predicate.append(" AND event_type = :eventType");
+		if (query.query() != null) predicate.append(" AND (CAST(dead_letter_event_id AS text) ILIKE :query ESCAPE '\\' OR message_id ILIKE :query ESCAPE '\\' OR event_type ILIKE :query ESCAPE '\\')");
+		return predicate.toString();
+	}
+
+	private Map<String, Object> adminParameters(AdminDeadLetterEventQuery query) {
+		Map<String, Object> parameters = new java.util.HashMap<>();
+		if (query.status() != null) parameters.put("status", query.status().name());
+		if (query.eventType() != null) parameters.put("eventType", query.eventType());
+		if (query.query() != null) parameters.put("query", "%" + escapeLike(query.query()) + "%");
+		return parameters;
+	}
+
+	private String escapeLike(String value) {
+		return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
 	}
 
 	@Override

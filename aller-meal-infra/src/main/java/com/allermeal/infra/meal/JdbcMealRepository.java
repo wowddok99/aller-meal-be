@@ -1,6 +1,9 @@
 package com.allermeal.infra.meal;
 
 import com.allermeal.application.port.out.MealRepository;
+import com.allermeal.application.admin.AdminMealItemLabelingItemResult;
+import com.allermeal.application.admin.AdminMealItemLabelingPageResult;
+import com.allermeal.application.admin.AdminMealItemLabelingQuery;
 import com.allermeal.application.port.out.result.MealSaveResult;
 import com.allermeal.application.port.out.result.MealQueryResult;
 import com.allermeal.domain.meal.Meal;
@@ -266,6 +269,66 @@ public class JdbcMealRepository implements MealRepository {
 			}
 		}
 		return true;
+	}
+
+	@Override
+	public AdminMealItemLabelingPageResult findAdminMealItemLabelings(AdminMealItemLabelingQuery query) {
+		int offset = Math.multiplyExact(query.page() - 1, query.pageSize());
+		Map<String, Object> parameters = adminParameters(query);
+		String predicate = adminPredicate(query);
+		long totalCount = jdbcClient.sql("""
+				SELECT count(*) FROM meal_items item
+				JOIN meals meal ON meal.meal_id = item.meal_id
+				JOIN schools school ON school.school_id = meal.school_id
+				WHERE""" + " " + predicate).params(parameters).query(Long.class).single();
+		var items = jdbcClient.sql("""
+				SELECT item.meal_item_id, item.meal_id, meal.school_id, school.name AS school_name,
+				       meal.meal_date, meal.meal_type, item.name, item.display_order, item.labeling_status,
+				       item.created_at, item.updated_at
+				FROM meal_items item
+				JOIN meals meal ON meal.meal_id = item.meal_id
+				JOIN schools school ON school.school_id = meal.school_id
+				WHERE""" + " " + predicate + " " + """
+				ORDER BY item.updated_at DESC, item.meal_item_id DESC
+				LIMIT :limit OFFSET :offset
+				""").params(parameters).param("limit", query.pageSize()).param("offset", offset)
+			.query((resultSet, rowNum) -> new AdminMealItemLabelingItemResult(
+				new MealItemId(resultSet.getObject("meal_item_id", UUID.class)),
+				new MealId(resultSet.getObject("meal_id", UUID.class)),
+				new SchoolId(resultSet.getObject("school_id", UUID.class)),
+				resultSet.getString("school_name"),
+				resultSet.getObject("meal_date", LocalDate.class),
+				MealType.valueOf(resultSet.getString("meal_type")),
+				resultSet.getString("name"), resultSet.getInt("display_order"),
+				MealItemLabelingStatus.valueOf(resultSet.getString("labeling_status")),
+				resultSet.getObject("created_at", OffsetDateTime.class).toInstant(),
+				resultSet.getObject("updated_at", OffsetDateTime.class).toInstant()))
+			.list();
+		return new AdminMealItemLabelingPageResult(items, query.page(), query.pageSize(), totalCount);
+	}
+
+	private String adminPredicate(AdminMealItemLabelingQuery query) {
+		StringBuilder predicate = new StringBuilder("1 = 1");
+		if (query.status() != null) predicate.append(" AND item.labeling_status = :status");
+		if (query.schoolId() != null) predicate.append(" AND meal.school_id = :schoolId");
+		if (query.mealDate() != null) predicate.append(" AND meal.meal_date = :mealDate");
+		if (query.mealType() != null) predicate.append(" AND meal.meal_type = :mealType");
+		if (query.query() != null) predicate.append(" AND item.name ILIKE :query ESCAPE '\\'");
+		return predicate.toString();
+	}
+
+	private Map<String, Object> adminParameters(AdminMealItemLabelingQuery query) {
+		Map<String, Object> parameters = new HashMap<>();
+		if (query.status() != null) parameters.put("status", query.status().name());
+		if (query.schoolId() != null) parameters.put("schoolId", query.schoolId());
+		if (query.mealDate() != null) parameters.put("mealDate", query.mealDate());
+		if (query.mealType() != null) parameters.put("mealType", query.mealType().name());
+		if (query.query() != null) parameters.put("query", "%" + escapeLike(query.query()) + "%");
+		return parameters;
+	}
+
+	private String escapeLike(String value) {
+		return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
 	}
 
 	private void insertItem(UUID mealId, MealItem item) {

@@ -126,13 +126,14 @@ public class AllerMealRuntimeConfiguration {
 	AdminCollectionFailureService adminCollectionFailureService(
 		CollectionJobRepository collectionJobRepository,
 		ExternalApiLogRepository externalApiLogRepository,
+		MealRepository mealRepository,
 		AdminRecollectionRequestRepository recollectionRequestRepository,
 		MealCollectionDispatcher collectionDispatcher,
 		AdminAuditLogRepository auditLogRepository,
 		Clock clock
 	) {
 		return new AdminCollectionFailureService(
-			collectionJobRepository, externalApiLogRepository, recollectionRequestRepository,
+			collectionJobRepository, externalApiLogRepository, mealRepository, recollectionRequestRepository,
 			collectionDispatcher, auditLogRepository, clock);
 	}
 

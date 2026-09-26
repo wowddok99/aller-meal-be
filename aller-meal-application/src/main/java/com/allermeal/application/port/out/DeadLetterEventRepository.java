@@ -2,6 +2,7 @@ package com.allermeal.application.port.out;
 
 import com.allermeal.application.admin.AdminDeadLetterEventItemResult;
 import com.allermeal.application.admin.AdminDeadLetterEventPageResult;
+import com.allermeal.application.admin.AdminDeadLetterEventQuery;
 import com.allermeal.application.port.out.command.DeadLetterEventCommand;
 import com.allermeal.domain.user.UserId;
 import java.time.Instant;
@@ -13,6 +14,8 @@ public interface DeadLetterEventRepository {
 	void save(DeadLetterEventCommand command);
 
 	AdminDeadLetterEventPageResult findRecent(int page, int pageSize);
+
+	AdminDeadLetterEventPageResult findAdminPage(AdminDeadLetterEventQuery query);
 
 	Optional<AdminDeadLetterEventItemResult> findById(UUID deadLetterEventId);
 

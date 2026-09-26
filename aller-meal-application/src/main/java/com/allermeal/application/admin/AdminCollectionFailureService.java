@@ -5,16 +5,21 @@ import com.allermeal.application.port.out.AdminRecollectionRequestRepository;
 import com.allermeal.application.port.out.CollectionJobRepository;
 import com.allermeal.application.port.out.ExternalApiLogRepository;
 import com.allermeal.application.port.out.MealCollectionDispatcher;
+import com.allermeal.application.port.out.MealRepository;
 import com.allermeal.application.port.out.command.AdminAuditLogCommand;
 import com.allermeal.application.port.out.command.AdminRecollectionRequestCommand;
 import com.allermeal.application.port.out.result.AdminRecollectionRequestResult;
 import com.allermeal.domain.collection.CollectionJob;
 import com.allermeal.domain.collection.CollectionJobId;
 import com.allermeal.domain.collection.CollectionJobStatus;
+import com.allermeal.domain.meal.MealItemLabelingStatus;
+import com.allermeal.domain.meal.MealType;
 import com.allermeal.domain.user.User;
 import com.allermeal.domain.user.UserRole;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Locale;
 import java.util.UUID;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +33,7 @@ public class AdminCollectionFailureService {
 
 	private final CollectionJobRepository collectionJobRepository;
 	private final ExternalApiLogRepository externalApiLogRepository;
+	private final MealRepository mealRepository;
 	private final AdminRecollectionRequestRepository recollectionRequestRepository;
 	private final MealCollectionDispatcher collectionDispatcher;
 	private final AdminAuditLogRepository auditLogRepository;
@@ -36,6 +42,7 @@ public class AdminCollectionFailureService {
 	public AdminCollectionFailureService(
 		CollectionJobRepository collectionJobRepository,
 		ExternalApiLogRepository externalApiLogRepository,
+		MealRepository mealRepository,
 		AdminRecollectionRequestRepository recollectionRequestRepository,
 		MealCollectionDispatcher collectionDispatcher,
 		AdminAuditLogRepository auditLogRepository,
@@ -43,6 +50,7 @@ public class AdminCollectionFailureService {
 	) {
 		this.collectionJobRepository = collectionJobRepository;
 		this.externalApiLogRepository = externalApiLogRepository;
+		this.mealRepository = mealRepository;
 		this.recollectionRequestRepository = recollectionRequestRepository;
 		this.collectionDispatcher = collectionDispatcher;
 		this.auditLogRepository = auditLogRepository;
@@ -59,6 +67,35 @@ public class AdminCollectionFailureService {
 		requireAdmin(actor);
 		validatePage(page, pageSize);
 		return externalApiLogRepository.findRecent(page, pageSize);
+	}
+
+	public AdminExternalApiLogPageResult findExternalApiLogs(
+		User actor, int page, int pageSize, String provider, String method, String outcome, String query
+	) {
+		requireAdmin(actor);
+		validatePage(page, pageSize);
+		return externalApiLogRepository.findAdminPage(new AdminExternalApiLogQuery(
+			page, pageSize, normalizeOptional(provider), normalizeOptional(method), normalizeOptional(outcome), normalizeQuery(query)));
+	}
+
+	public AdminCollectionJobPageResult findCollectionJobs(
+		User actor, int page, int pageSize, String status, String schoolId, String mealDate, String mealType, String query
+	) {
+		requireAdmin(actor);
+		validatePage(page, pageSize);
+		return collectionJobRepository.findAdminPage(new AdminCollectionJobQuery(
+			page, pageSize, parseEnum(status, CollectionJobStatus.class), parseUuid(schoolId), parseDate(mealDate),
+			parseEnum(mealType, MealType.class), normalizeQuery(query)));
+	}
+
+	public AdminMealItemLabelingPageResult findMealItemLabelings(
+		User actor, int page, int pageSize, String status, String schoolId, String mealDate, String mealType, String query
+	) {
+		requireAdmin(actor);
+		validatePage(page, pageSize);
+		return mealRepository.findAdminMealItemLabelings(new AdminMealItemLabelingQuery(
+			page, pageSize, parseEnum(status, MealItemLabelingStatus.class), parseUuid(schoolId), parseDate(mealDate),
+			parseEnum(mealType, MealType.class), normalizeQuery(query)));
 	}
 
 	@Transactional
@@ -125,6 +162,47 @@ public class AdminCollectionFailureService {
 			|| (long) page > ((long) Integer.MAX_VALUE / pageSize) + 1) {
 			throw new AdminInvalidCollectionRequestException();
 		}
+	}
+
+	private <T extends Enum<T>> T parseEnum(String value, Class<T> type) {
+		if (value == null || value.isBlank()) return null;
+		try {
+			return Enum.valueOf(type, value.trim());
+		} catch (IllegalArgumentException exception) {
+			throw new AdminInvalidCollectionRequestException();
+		}
+	}
+
+	private UUID parseUuid(String value) {
+		if (value == null || value.isBlank()) return null;
+		try {
+			return UUID.fromString(value.trim());
+		} catch (IllegalArgumentException exception) {
+			throw new AdminInvalidCollectionRequestException();
+		}
+	}
+
+	private LocalDate parseDate(String value) {
+		if (value == null || value.isBlank()) return null;
+		try {
+			return LocalDate.parse(value.trim());
+		} catch (DateTimeParseException exception) {
+			throw new AdminInvalidCollectionRequestException();
+		}
+	}
+
+	private String normalizeQuery(String value) {
+		if (value == null || value.isBlank()) return null;
+		String normalized = value.trim();
+		if (normalized.length() > 100) throw new AdminInvalidCollectionRequestException();
+		return normalized;
+	}
+
+	private String normalizeOptional(String value) {
+		if (value == null || value.isBlank()) return null;
+		String normalized = value.trim();
+		if (normalized.length() > 100) throw new AdminInvalidCollectionRequestException();
+		return normalized;
 	}
 
 	private void dispatchAfterCommit(CollectionJob collectionJob) {

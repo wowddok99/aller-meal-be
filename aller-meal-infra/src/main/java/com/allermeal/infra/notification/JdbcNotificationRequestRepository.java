@@ -2,6 +2,9 @@ package com.allermeal.infra.notification;
 
 import com.allermeal.application.admin.AdminFailedNotificationItemResult;
 import com.allermeal.application.admin.AdminFailedNotificationPageResult;
+import com.allermeal.application.admin.AdminNotificationRequestItemResult;
+import com.allermeal.application.admin.AdminNotificationRequestPageResult;
+import com.allermeal.application.admin.AdminNotificationRequestQuery;
 import com.allermeal.application.notification.NotificationHistoryItemResult;
 import com.allermeal.application.notification.NotificationHistoryResult;
 import com.allermeal.application.port.out.NotificationRequestRepository;
@@ -23,6 +26,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -281,6 +285,57 @@ public class JdbcNotificationRequestRepository implements NotificationRequestRep
 			.query(this::mapFailedNotification)
 			.list();
 		return new AdminFailedNotificationPageResult(notifications, page, pageSize, totalCount);
+	}
+
+	@Override
+	public AdminNotificationRequestPageResult findAdminPage(AdminNotificationRequestQuery query) {
+		int offset = offset(query.page(), query.pageSize());
+		String predicate = adminPredicate(query);
+		Map<String, Object> parameters = adminParameters(query);
+		long totalCount = jdbcClient.sql("SELECT count(*) FROM notification_requests WHERE " + predicate)
+			.params(parameters).query(Long.class).single();
+		List<AdminNotificationRequestItemResult> items = jdbcClient.sql("""
+				SELECT notification_id, notification_target_id, child_id, user_id, notification_date, channel, reason,
+				       status, attempt_count, max_attempts, next_attempt_at, sent_at, failure_code, failure_message,
+				       created_at, updated_at
+				FROM notification_requests WHERE""" + " " + predicate + " " + """
+				ORDER BY updated_at DESC, notification_id DESC LIMIT :limit OFFSET :offset
+				""").params(parameters).param("limit", query.pageSize()).param("offset", offset)
+			.query(this::mapAdminNotification).list();
+		return new AdminNotificationRequestPageResult(items, query.page(), query.pageSize(), totalCount);
+	}
+
+	private String adminPredicate(AdminNotificationRequestQuery query) {
+		StringBuilder predicate = new StringBuilder("1 = 1");
+		if (query.status() != null) predicate.append(" AND status = :status");
+		if (query.channel() != null) predicate.append(" AND channel = :channel");
+		if (query.reason() != null) predicate.append(" AND reason = :reason");
+		if (query.query() != null) predicate.append(" AND CAST(notification_id AS text) = :query");
+		return predicate.toString();
+	}
+
+	private Map<String, Object> adminParameters(AdminNotificationRequestQuery query) {
+		Map<String, Object> parameters = new java.util.HashMap<>();
+		if (query.status() != null) parameters.put("status", query.status().name());
+		if (query.channel() != null) parameters.put("channel", query.channel().name());
+		if (query.reason() != null) parameters.put("reason", query.reason().name());
+		if (query.query() != null) parameters.put("query", query.query());
+		return parameters;
+	}
+
+	private AdminNotificationRequestItemResult mapAdminNotification(ResultSet resultSet, int rowNum) throws SQLException {
+		OffsetDateTime nextAttemptAt = resultSet.getObject("next_attempt_at", OffsetDateTime.class);
+		OffsetDateTime sentAt = resultSet.getObject("sent_at", OffsetDateTime.class);
+		return new AdminNotificationRequestItemResult(
+			new NotificationId(resultSet.getObject("notification_id", UUID.class)),
+			resultSet.getObject("notification_target_id", UUID.class),
+			new ChildProfileId(resultSet.getObject("child_id", UUID.class)), new UserId(resultSet.getObject("user_id", UUID.class)),
+			resultSet.getObject("notification_date", java.time.LocalDate.class),
+			NotificationChannel.valueOf(resultSet.getString("channel")), NotificationReason.valueOf(resultSet.getString("reason")),
+			NotificationStatus.valueOf(resultSet.getString("status")), resultSet.getInt("attempt_count"), resultSet.getInt("max_attempts"),
+			nextAttemptAt == null ? null : nextAttemptAt.toInstant(), sentAt == null ? null : sentAt.toInstant(),
+			resultSet.getString("failure_code"), resultSet.getString("failure_message"),
+			resultSet.getObject("created_at", OffsetDateTime.class).toInstant(), resultSet.getObject("updated_at", OffsetDateTime.class).toInstant());
 	}
 
 	private int offset(int page, int pageSize) {
