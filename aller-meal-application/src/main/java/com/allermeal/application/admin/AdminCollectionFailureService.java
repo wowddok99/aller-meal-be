@@ -8,6 +8,7 @@ import com.allermeal.application.port.out.MealCollectionDispatcher;
 import com.allermeal.application.port.out.MealRepository;
 import com.allermeal.application.port.out.command.AdminAuditLogCommand;
 import com.allermeal.application.port.out.command.AdminRecollectionRequestCommand;
+import com.allermeal.application.port.out.result.AdminCollectionRecoveryLookupResult;
 import com.allermeal.application.port.out.result.AdminRecollectionRequestResult;
 import com.allermeal.domain.collection.CollectionJob;
 import com.allermeal.domain.collection.CollectionJobId;
@@ -17,12 +18,15 @@ import com.allermeal.domain.meal.MealType;
 import com.allermeal.domain.user.User;
 import com.allermeal.domain.user.UserRole;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -38,6 +42,7 @@ public class AdminCollectionFailureService {
 	private final MealCollectionDispatcher collectionDispatcher;
 	private final AdminAuditLogRepository auditLogRepository;
 	private final Clock clock;
+	private final Duration pendingRecoveryDelay;
 
 	public AdminCollectionFailureService(
 		CollectionJobRepository collectionJobRepository,
@@ -48,6 +53,18 @@ public class AdminCollectionFailureService {
 		AdminAuditLogRepository auditLogRepository,
 		Clock clock
 	) {
+		this(collectionJobRepository, externalApiLogRepository, mealRepository, recollectionRequestRepository,
+			collectionDispatcher, auditLogRepository, clock, Duration.ofMinutes(2));
+	}
+
+	public AdminCollectionFailureService(CollectionJobRepository collectionJobRepository,
+		ExternalApiLogRepository externalApiLogRepository, MealRepository mealRepository,
+		AdminRecollectionRequestRepository recollectionRequestRepository, MealCollectionDispatcher collectionDispatcher,
+		AdminAuditLogRepository auditLogRepository, Clock clock, Duration pendingRecoveryDelay) {
+		if (pendingRecoveryDelay.isZero() || pendingRecoveryDelay.isNegative()) {
+			throw new IllegalArgumentException("대기 작업 복구 지연은 양수여야 합니다.");
+		}
+		this.pendingRecoveryDelay = pendingRecoveryDelay;
 		this.collectionJobRepository = collectionJobRepository;
 		this.externalApiLogRepository = externalApiLogRepository;
 		this.mealRepository = mealRepository;
@@ -78,14 +95,51 @@ public class AdminCollectionFailureService {
 			page, pageSize, normalizeOptional(provider), normalizeOptional(method), normalizeOptional(outcome), normalizeQuery(query)));
 	}
 
+	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	public AdminCollectionJobPageResult findCollectionJobs(
 		User actor, int page, int pageSize, String status, String schoolId, String mealDate, String mealType, String query
 	) {
+		return findCollectionJobs(actor, page, pageSize, status, schoolId, mealDate, mealType, query, null);
+	}
+
+	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+	public AdminCollectionJobPageResult findCollectionJobs(User actor, int page, int pageSize, String status,
+		String schoolId, String mealDate, String mealType, String query, Boolean unresolvedFailure) {
 		requireAdmin(actor);
 		validatePage(page, pageSize);
-		return collectionJobRepository.findAdminPage(new AdminCollectionJobQuery(
+		AdminCollectionJobPageResult result = collectionJobRepository.findAdminPage(new AdminCollectionJobQuery(
 			page, pageSize, parseEnum(status, CollectionJobStatus.class), parseUuid(schoolId), parseDate(mealDate),
-			parseEnum(mealType, MealType.class), normalizeQuery(query)));
+			parseEnum(mealType, MealType.class), normalizeQuery(query), unresolvedFailure));
+		return new AdminCollectionJobPageResult(enrich(result.items()), result.page(), result.pageSize(), result.totalCount());
+	}
+
+	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+	public AdminCollectionJobItemResult findCollectionJob(User actor, CollectionJobId id) {
+		requireAdmin(actor);
+		return enrich(List.of(collectionJobRepository.findAdminById(id)
+			.orElseThrow(AdminCollectionJobNotFoundException::new))).getFirst();
+	}
+
+	private List<AdminCollectionJobItemResult> enrich(List<AdminCollectionJobItemResult> items) {
+		Instant now = clock.instant();
+		var summaries = recollectionRequestRepository.findRecoveries(items.stream().map(i -> i.collectionJobId().value()).toList(), now);
+		return items.stream().map(item -> {
+			var summary = summaries.get(item.collectionJobId().value());
+			if (summary == null) throw new IllegalStateException("수집 복구 요약이 없습니다.");
+			return item.withRecovery(summary.unresolvedFailure(), summary.recovery(), actions(item.status(), item.createdAt(), summary, now));
+		}).toList();
+	}
+
+	private AdminCollectionAvailableActionsResult actions(CollectionJobStatus status, Instant createdAt,
+		AdminCollectionRecoveryLookupResult summary, Instant now) {
+		Instant availableAt = null;
+		if (status == CollectionJobStatus.PENDING) {
+			Instant base = summary.latestExecutionAt() != null && summary.latestExecutionAt().isAfter(createdAt)
+				? summary.latestExecutionAt() : createdAt;
+			availableAt = base.plus(pendingRecoveryDelay);
+		}
+		return new AdminCollectionAvailableActionsResult(status == CollectionJobStatus.FAILED && summary.unresolvedFailure()
+			&& !summary.hasActive(), availableAt != null && !now.isBefore(availableAt), availableAt);
 	}
 
 	public AdminMealItemLabelingPageResult findMealItemLabelings(
@@ -99,62 +153,53 @@ public class AdminCollectionFailureService {
 	}
 
 	@Transactional
-	public AdminRecollectionResult requestRecollection(
-		User actor,
-		CollectionJobId failedCollectionJobId,
-		String idempotencyKey
-	) {
+	public AdminRecollectionResult requestRecollection(User actor, CollectionJobId id, String idempotencyKey) {
+		return requestCollectionAction(actor, id, idempotencyKey, AdminCollectionRequestType.RECOLLECTION);
+	}
+
+	@Transactional
+	public AdminRecollectionResult requestExecution(User actor, CollectionJobId id, String idempotencyKey) {
+		return requestCollectionAction(actor, id, idempotencyKey, AdminCollectionRequestType.EXECUTION);
+	}
+
+	private AdminRecollectionResult requestCollectionAction(User actor, CollectionJobId id, String key,
+		AdminCollectionRequestType type) {
 		requireAdmin(actor);
-		String normalizedKey = normalizeIdempotencyKey(idempotencyKey);
-		CollectionJob failedJob = collectionJobRepository.findById(failedCollectionJobId)
-			.filter(job -> job.status() == CollectionJobStatus.FAILED)
-			.orElseThrow(AdminCollectionJobNotFoundException::new);
-		AdminRecollectionRequestResult existing = recollectionRequestRepository
-			.findByIdempotencyKey(normalizedKey, failedJob.id())
-			.orElse(null);
-		if (existing != null) {
-			if (existing.conflict()) {
-				throw new AdminRecollectionConflictException();
-			}
-			CollectionJob existingJob = collectionJobRepository.findById(existing.collectionJobId())
+		String normalizedKey = normalizeIdempotencyKey(key);
+		recollectionRequestRepository.lockRequestKey(normalizedKey);
+		var replay = recollectionRequestRepository.findByIdempotencyKey(normalizedKey, id, actor.id(), type).orElse(null);
+		if (replay != null) {
+			if (replay.conflict()) throw new AdminRecollectionConflictException();
+			CollectionJob current = collectionJobRepository.findById(replay.collectionJobId())
 				.orElseThrow(AdminCollectionJobNotFoundException::new);
-			return new AdminRecollectionResult(
-				failedJob.id(), existing.collectionJobId(), existingJob.status(), true);
+			return new AdminRecollectionResult(id, current.id(), current.status(), true);
 		}
+		CollectionJob source = collectionJobRepository.findById(id).orElseThrow(AdminCollectionJobNotFoundException::new);
+		// 두 관리자 액션 모두 수집 대상 잠금 다음에 원본 행을 잠급니다.
+		recollectionRequestRepository.lockCollectionTarget(source);
+		source = collectionJobRepository.findByIdForUpdate(id).orElseThrow(AdminCollectionJobNotFoundException::new);
 		Instant requestedAt = clock.instant();
-		CollectionJob pending = CollectionJob.pending(
-			new CollectionJobId(UUID.randomUUID()),
-			failedJob.schoolId(),
-			failedJob.mealDate(),
-			failedJob.mealType(),
-			requestedAt);
-		CollectionJob active = collectionJobRepository.createOrGetActive(pending, requestedAt);
-		AdminRecollectionRequestResult saved = recollectionRequestRepository.save(new AdminRecollectionRequestCommand(
-			UUID.randomUUID(),
-			normalizedKey,
-			actor.id(),
-			failedJob.id(),
-			active.id(),
-			requestedAt));
-		if (saved.conflict()) {
-			throw new AdminRecollectionConflictException();
+		var summary = recollectionRequestRepository.findRecoveries(List.of(id.value()), requestedAt).get(id.value());
+		if (summary == null) throw new IllegalStateException("수집 복구 요약이 없습니다.");
+		var available = actions(source.status(), source.timestamps().createdAt(), summary, requestedAt);
+		if (type == AdminCollectionRequestType.RECOLLECTION ? !available.canRecollect() : !available.canExecute()) {
+			throw new AdminCollectionJobStateConflictException();
 		}
-		if (!saved.duplicate()) {
-			auditLogRepository.save(new AdminAuditLogCommand(
-				UUID.randomUUID(),
-				actor.id(),
-				actor.id(),
-				"REQUEST_COLLECTION_RETRY",
-				"SUCCEEDED",
-				"originalCollectionJobId=%s collectionJobId=%s duplicate=false".formatted(
-					failedJob.id().value(), saved.collectionJobId().value()),
-				requestedAt));
+		CollectionJob target = source;
+		if (type == AdminCollectionRequestType.RECOLLECTION) {
+			target = collectionJobRepository.createOrGetActive(CollectionJob.pending(new CollectionJobId(UUID.randomUUID()),
+				source.schoolId(), source.mealDate(), source.mealType(), requestedAt), requestedAt);
 		}
-		if (!saved.duplicate() && active.status() == CollectionJobStatus.PENDING) {
-			dispatchAfterCommit(active);
-		}
-		return new AdminRecollectionResult(
-			failedJob.id(), saved.collectionJobId(), active.status(), saved.duplicate());
+		var saved = recollectionRequestRepository.save(new AdminRecollectionRequestCommand(UUID.randomUUID(), normalizedKey,
+			actor.id(), source.id(), target.id(), requestedAt, type));
+		if (saved.conflict()) throw new AdminRecollectionConflictException();
+		if (saved.duplicate()) throw new IllegalStateException("잠금 이후 중복 수집 요청 발생");
+		String action = type == AdminCollectionRequestType.EXECUTION ? "REQUEST_COLLECTION_EXECUTION" : "REQUEST_COLLECTION_RETRY";
+		auditLogRepository.save(new AdminAuditLogCommand(UUID.randomUUID(), actor.id(), actor.id(), action, "SUCCEEDED",
+			"requestAccepted=true action=%s originalCollectionJobId=%s collectionJobId=%s requestedAt=%s".formatted(
+				type, source.id().value(), target.id().value(), requestedAt), requestedAt));
+		if (target.status() == CollectionJobStatus.PENDING) dispatchAfterCommit(target);
+		return new AdminRecollectionResult(source.id(), target.id(), target.status(), false);
 	}
 
 	private void validatePage(int page, int pageSize) {

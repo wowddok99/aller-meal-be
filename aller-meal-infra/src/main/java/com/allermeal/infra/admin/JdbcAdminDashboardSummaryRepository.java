@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Repository
 public class JdbcAdminDashboardSummaryRepository implements AdminDashboardSummaryRepository {
 
-	private static final long REFRESH_LOCK_KEY = 7_404_621_064L;
+	private static final long REFRESH_LOCK_KEY = CollectionDashboardSnapshotInvalidator.REFRESH_LOCK_KEY;
 
 	private final JdbcClient jdbcClient;
 
@@ -59,6 +59,7 @@ public class JdbcAdminDashboardSummaryRepository implements AdminDashboardSummar
 				    (SELECT count(*) FROM collection_jobs WHERE status = 'RUNNING') AS collection_running_count,
 				    (SELECT count(*) FROM collection_jobs WHERE status = 'SUCCEEDED') AS collection_succeeded_count,
 				    (SELECT count(*) FROM collection_jobs WHERE status = 'FAILED') AS collection_failed_count,
+					(SELECT count(*) FROM collection_job_recovery_summaries WHERE unresolved_failure) AS collection_unresolved_failed_count,
 				    (SELECT count(*) FROM meal_items WHERE labeling_status = 'PENDING') AS labeling_pending_count,
 				    (SELECT count(*) FROM meal_items WHERE labeling_status = 'LABELED') AS labeling_labeled_count,
 				    (SELECT count(*) FROM meal_items WHERE labeling_status = 'UNKNOWN') AS labeling_unknown_count,
@@ -80,7 +81,7 @@ public class JdbcAdminDashboardSummaryRepository implements AdminDashboardSummar
 					resultSet.getLong("collection_pending_count"),
 					resultSet.getLong("collection_running_count"),
 					resultSet.getLong("collection_succeeded_count"),
-					resultSet.getLong("collection_failed_count")),
+					resultSet.getLong("collection_failed_count"), resultSet.getLong("collection_unresolved_failed_count")),
 				new AdminDashboardLabelingSummaryResult(
 					resultSet.getLong("labeling_pending_count"),
 					resultSet.getLong("labeling_labeled_count"),
@@ -121,7 +122,7 @@ public class JdbcAdminDashboardSummaryRepository implements AdminDashboardSummar
 		var statement = jdbcClient.sql("""
 				SELECT generated_at,
 				       collection_pending_count, collection_running_count,
-				       collection_succeeded_count, collection_failed_count,
+				       collection_succeeded_count, collection_failed_count, collection_unresolved_failed_count,
 				       labeling_pending_count, labeling_labeled_count,
 				       labeling_unknown_count, labeling_failed_count,
 				       outbox_pending_count, outbox_published_count,
@@ -145,7 +146,7 @@ public class JdbcAdminDashboardSummaryRepository implements AdminDashboardSummar
 				INSERT INTO admin_dashboard_summary_snapshots (
 				    summary_snapshot_id, generated_at,
 				    collection_pending_count, collection_running_count,
-				    collection_succeeded_count, collection_failed_count,
+				    collection_succeeded_count, collection_failed_count, collection_unresolved_failed_count,
 				    labeling_pending_count, labeling_labeled_count,
 				    labeling_unknown_count, labeling_failed_count,
 				    outbox_pending_count, outbox_published_count,
@@ -157,7 +158,7 @@ public class JdbcAdminDashboardSummaryRepository implements AdminDashboardSummar
 				VALUES (
 				    :snapshotId, :generatedAt,
 				    :collectionPendingCount, :collectionRunningCount,
-				    :collectionSucceededCount, :collectionFailedCount,
+				    :collectionSucceededCount, :collectionFailedCount, :collectionUnresolvedFailedCount,
 				    :labelingPendingCount, :labelingLabeledCount,
 				    :labelingUnknownCount, :labelingFailedCount,
 				    :outboxPendingCount, :outboxPublishedCount,
@@ -173,6 +174,7 @@ public class JdbcAdminDashboardSummaryRepository implements AdminDashboardSummar
 			.param("collectionRunningCount", summary.collection().runningCount())
 			.param("collectionSucceededCount", summary.collection().succeededCount())
 			.param("collectionFailedCount", summary.collection().failedCount())
+			.param("collectionUnresolvedFailedCount", summary.collection().unresolvedFailedCount())
 			.param("labelingPendingCount", summary.labeling().pendingCount())
 			.param("labelingLabeledCount", summary.labeling().labeledCount())
 			.param("labelingUnknownCount", summary.labeling().unknownCount())
@@ -197,7 +199,7 @@ public class JdbcAdminDashboardSummaryRepository implements AdminDashboardSummar
 				resultSet.getLong("collection_pending_count"),
 				resultSet.getLong("collection_running_count"),
 				resultSet.getLong("collection_succeeded_count"),
-				resultSet.getLong("collection_failed_count")),
+				resultSet.getLong("collection_failed_count"), resultSet.getLong("collection_unresolved_failed_count")),
 			new AdminDashboardLabelingSummaryResult(
 				resultSet.getLong("labeling_pending_count"),
 				resultSet.getLong("labeling_labeled_count"),

@@ -1,5 +1,6 @@
 package com.allermeal.application.port.out.command;
 
+import com.allermeal.application.admin.AdminCollectionRequestType;
 import com.allermeal.domain.collection.CollectionJobId;
 import com.allermeal.domain.user.UserId;
 import java.time.Instant;
@@ -11,6 +12,11 @@ public record AdminRecollectionRequestCommand(
 	UserId actorUserId,
 	CollectionJobId originalCollectionJobId,
 	CollectionJobId collectionJobId,
-	Instant createdAt
+	Instant createdAt,
+	AdminCollectionRequestType requestType
 ) {
+	public AdminRecollectionRequestCommand(UUID id, String key, UserId actor, CollectionJobId original,
+		CollectionJobId target, Instant createdAt) {
+		this(id, key, actor, original, target, createdAt, AdminCollectionRequestType.RECOLLECTION);
+	}
 }

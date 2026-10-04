@@ -1,44 +1,44 @@
 package com.allermeal.infra.config;
 
-import com.allermeal.application.admin.AdminCollectionFailureService;
 import com.allermeal.application.account.AccountWithdrawalService;
 import com.allermeal.application.account.ExpiredAccountPersonalDataCleanupService;
 import com.allermeal.application.admin.AdminBootstrapProperties;
 import com.allermeal.application.admin.AdminBootstrapService;
+import com.allermeal.application.admin.AdminCollectionFailureService;
 import com.allermeal.application.admin.AdminDashboardSummaryService;
 import com.allermeal.application.admin.AdminNotificationFailureService;
 import com.allermeal.application.admin.AdminUserService;
-import com.allermeal.application.consumer.IdempotentEventConsumer;
-import com.allermeal.application.child.ChildProfileService;
 import com.allermeal.application.child.ChildAllergenService;
 import com.allermeal.application.child.ChildNotificationPreferenceService;
+import com.allermeal.application.child.ChildProfileService;
+import com.allermeal.application.consumer.IdempotentEventConsumer;
 import com.allermeal.application.meal.MealAllergenLabelingService;
 import com.allermeal.application.meal.NeisAllergenLabelParser;
+import com.allermeal.application.meal.PersonalizedMealQueryService;
+import com.allermeal.application.meal.PublicMealQueryService;
 import com.allermeal.application.notification.NotificationDeliveryService;
 import com.allermeal.application.notification.NotificationHistoryService;
 import com.allermeal.application.notification.NotificationRequestCreationService;
-import com.allermeal.application.meal.PersonalizedMealQueryService;
-import com.allermeal.application.meal.PublicMealQueryService;
-import com.allermeal.application.port.out.AdminAuditLogRepository;
-import com.allermeal.application.port.out.AdminUserAccessAuditRepository;
-import com.allermeal.application.port.out.AdminUserQueryRepository;
+import com.allermeal.application.outbox.OutboxPublisher;
 import com.allermeal.application.port.out.AccountWithdrawalPrivacyRepository;
+import com.allermeal.application.port.out.AdminAuditLogRepository;
 import com.allermeal.application.port.out.AdminBootstrapLockRepository;
 import com.allermeal.application.port.out.AdminDashboardSummaryRepository;
 import com.allermeal.application.port.out.AdminNotificationReprocessRequestRepository;
 import com.allermeal.application.port.out.AdminRecollectionRequestRepository;
+import com.allermeal.application.port.out.AdminUserAccessAuditRepository;
+import com.allermeal.application.port.out.AdminUserQueryRepository;
 import com.allermeal.application.port.out.AllergenRepository;
 import com.allermeal.application.port.out.ChildAllergenRepository;
-import com.allermeal.application.outbox.OutboxPublisher;
-import com.allermeal.application.port.out.ConsumedEventRepository;
-import com.allermeal.application.port.out.ChildProfileRepository;
 import com.allermeal.application.port.out.ChildNotificationPreferenceRepository;
+import com.allermeal.application.port.out.ChildProfileRepository;
 import com.allermeal.application.port.out.CollectionJobRepository;
+import com.allermeal.application.port.out.ConsumedEventRepository;
 import com.allermeal.application.port.out.DeadLetterEventRepository;
-import com.allermeal.application.port.out.EventPublisher;
 import com.allermeal.application.port.out.EmailDecryptor;
 import com.allermeal.application.port.out.EmailEncryptor;
 import com.allermeal.application.port.out.EmailSearchHasher;
+import com.allermeal.application.port.out.EventPublisher;
 import com.allermeal.application.port.out.ExternalApiLogRepository;
 import com.allermeal.application.port.out.MealCollectionDispatcher;
 import com.allermeal.application.port.out.MealRepository;
@@ -48,8 +48,8 @@ import com.allermeal.application.port.out.OutboxEventRepository;
 import com.allermeal.application.port.out.PasswordHasher;
 import com.allermeal.application.port.out.PublicMealQueryCache;
 import com.allermeal.application.port.out.RefreshTokenStore;
-import com.allermeal.application.port.out.SchoolRepository;
 import com.allermeal.application.port.out.SchoolCollectionSubscriptionRepository;
+import com.allermeal.application.port.out.SchoolRepository;
 import com.allermeal.application.port.out.UserRepository;
 import com.allermeal.infra.consumer.RabbitMqRetryRouter;
 import com.allermeal.infra.notification.SmtpNotificationMailSender;
@@ -130,11 +130,12 @@ public class AllerMealRuntimeConfiguration {
 		AdminRecollectionRequestRepository recollectionRequestRepository,
 		MealCollectionDispatcher collectionDispatcher,
 		AdminAuditLogRepository auditLogRepository,
-		Clock clock
+		Clock clock,
+		@Value("${aller-meal.admin.collection.pending-recovery-delay:${aller-meal.neis.meal.lease-duration:2m}}") java.time.Duration pendingRecoveryDelay
 	) {
 		return new AdminCollectionFailureService(
 			collectionJobRepository, externalApiLogRepository, mealRepository, recollectionRequestRepository,
-			collectionDispatcher, auditLogRepository, clock);
+			collectionDispatcher, auditLogRepository, clock, pendingRecoveryDelay);
 	}
 
 	@Bean
