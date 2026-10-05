@@ -1,10 +1,10 @@
 package com.allermeal.infra.collection;
 
-import com.allermeal.application.admin.AdminFailedCollectionJobItemResult;
-import com.allermeal.application.admin.AdminFailedCollectionJobPageResult;
 import com.allermeal.application.admin.AdminCollectionJobItemResult;
 import com.allermeal.application.admin.AdminCollectionJobPageResult;
 import com.allermeal.application.admin.AdminCollectionJobQuery;
+import com.allermeal.application.admin.AdminFailedCollectionJobItemResult;
+import com.allermeal.application.admin.AdminFailedCollectionJobPageResult;
 import com.allermeal.application.port.out.CollectionJobRepository;
 import com.allermeal.application.port.out.ConcurrentStateChangeException;
 import com.allermeal.domain.collection.CollectionJob;
@@ -13,6 +13,7 @@ import com.allermeal.domain.collection.CollectionJobStatus;
 import com.allermeal.domain.common.EntityTimestamps;
 import com.allermeal.domain.meal.MealType;
 import com.allermeal.domain.school.SchoolId;
+import com.allermeal.infra.admin.CollectionDashboardSnapshotInvalidator;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
@@ -48,6 +49,7 @@ public class JdbcCollectionJobRepository implements CollectionJobRepository {
 			throw new IllegalArgumentException("PENDING 수집 작업만 중복 방지 생성할 수 있습니다.");
 		}
 		Objects.requireNonNull(staleBefore, "stale 기준 시각은 null일 수 없습니다.");
+		CollectionDashboardSnapshotInvalidator.invalidate(jdbcClient);
 		jdbcClient.sql("""
 				UPDATE collection_jobs SET
 				    status = 'FAILED',
@@ -86,8 +88,10 @@ public class JdbcCollectionJobRepository implements CollectionJobRepository {
 	}
 
 	@Override
+	@org.springframework.transaction.annotation.Transactional
 	public CollectionJob save(CollectionJobStatus expectedStatus, CollectionJob job) {
 		Objects.requireNonNull(expectedStatus, "기대 수집 작업 상태는 null일 수 없습니다.");
+		CollectionDashboardSnapshotInvalidator.invalidate(jdbcClient);
 		return jdbcClient.sql("""
 				UPDATE collection_jobs SET
 				    status = :status,
@@ -151,7 +155,7 @@ public class JdbcCollectionJobRepository implements CollectionJobRepository {
 		int offset = Math.multiplyExact(query.page() - 1, query.pageSize());
 		Map<String, Object> parameters = adminParameters(query);
 		String predicate = adminPredicate(query);
-		long totalCount = jdbcClient.sql("SELECT count(*) FROM collection_jobs job JOIN schools school ON school.school_id = job.school_id WHERE " + predicate)
+		long totalCount = jdbcClient.sql("SELECT count(*) FROM collection_jobs job JOIN schools school ON school.school_id = job.school_id JOIN collection_job_recovery_summaries recovery ON recovery.collection_job_id = job.collection_job_id WHERE " + predicate)
 			.params(parameters).query(Long.class).single();
 		var items = jdbcClient.sql("""
 				SELECT job.collection_job_id, job.school_id, school.name AS school_name, job.meal_date, job.meal_type,
@@ -159,6 +163,7 @@ public class JdbcCollectionJobRepository implements CollectionJobRepository {
 				       job.raw_object_id, job.failure_code, job.failure_message, job.created_at, job.updated_at
 				FROM collection_jobs job
 				JOIN schools school ON school.school_id = job.school_id
+				JOIN collection_job_recovery_summaries recovery ON recovery.collection_job_id = job.collection_job_id
 				WHERE""" + " " + predicate + " " + """
 				ORDER BY job.updated_at DESC, job.collection_job_id DESC
 				LIMIT :limit OFFSET :offset
@@ -168,8 +173,24 @@ public class JdbcCollectionJobRepository implements CollectionJobRepository {
 		return new AdminCollectionJobPageResult(items, query.page(), query.pageSize(), totalCount);
 	}
 
+	@Override
+	public Optional<AdminCollectionJobItemResult> findAdminById(CollectionJobId id) {
+		return jdbcClient.sql("""
+			SELECT job.*, school.name AS school_name FROM collection_jobs job
+			JOIN schools school ON school.school_id = job.school_id
+			WHERE job.collection_job_id = :id
+			""").param("id", id.value()).query(this::mapAdminItem).optional();
+	}
+
+	@Override
+	public Optional<CollectionJob> findByIdForUpdate(CollectionJobId id) {
+		return jdbcClient.sql("SELECT " + RETURNING_COLUMNS + " FROM collection_jobs WHERE collection_job_id = :id FOR UPDATE")
+			.param("id", id.value()).query(this::map).optional();
+	}
+
 	private String adminPredicate(AdminCollectionJobQuery query) {
 		StringBuilder predicate = new StringBuilder("1 = 1");
+		if (query.unresolvedFailure() != null) predicate.append(" AND recovery.unresolved_failure = :unresolvedFailure");
 		if (query.status() != null) predicate.append(" AND job.status = :status");
 		if (query.schoolId() != null) predicate.append(" AND job.school_id = :schoolId");
 		if (query.mealDate() != null) predicate.append(" AND job.meal_date = :mealDate");
@@ -180,6 +201,7 @@ public class JdbcCollectionJobRepository implements CollectionJobRepository {
 
 	private Map<String, Object> adminParameters(AdminCollectionJobQuery query) {
 		Map<String, Object> parameters = new HashMap<>();
+		if (query.unresolvedFailure() != null) parameters.put("unresolvedFailure", query.unresolvedFailure());
 		if (query.status() != null) parameters.put("status", query.status().name());
 		if (query.schoolId() != null) parameters.put("schoolId", query.schoolId());
 		if (query.mealDate() != null) parameters.put("mealDate", query.mealDate());

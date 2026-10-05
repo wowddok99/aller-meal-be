@@ -80,9 +80,11 @@ public class OpenApiConfiguration {
 		Map.entry("AccountWithdrawalController#cancelWithdrawal", "cancelAccountWithdrawal"),
 		Map.entry("AdminCollectionFailureController#findFailedCollectionJobs", "listFailedCollectionJobs"),
 		Map.entry("AdminCollectionFailureController#findCollectionJobs", "listAdminCollectionJobs"),
+		Map.entry("AdminCollectionFailureController#findCollectionJob", "getAdminCollectionJob"),
 		Map.entry("AdminCollectionFailureController#findMealItemLabelings", "listAdminMealItemLabelings"),
 		Map.entry("AdminCollectionFailureController#findExternalApiLogs", "listExternalApiLogs"),
 		Map.entry("AdminCollectionFailureController#requestRecollection", "requestCollectionRecollection"),
+		Map.entry("AdminCollectionFailureController#requestExecution", "requestCollectionExecution"),
 		Map.entry("AdminNotificationFailureController#findFailedNotifications", "listFailedNotifications"),
 		Map.entry("AdminNotificationFailureController#findOutboxEvents", "listAdminOutboxEvents"),
 		Map.entry("AdminNotificationFailureController#findNotificationRequests", "listAdminNotificationRequests"),
@@ -141,6 +143,13 @@ public class OpenApiConfiguration {
 	@SuppressWarnings("unchecked")
 	OpenApiCustomizer adminLegacyAccessHistoryNullableCustomizer() {
 		return openApi -> {
+			Schema<?> recovery = openApi.getComponents().getSchemas().get("AdminCollectionRecoveryResponse");
+			if (recovery != null && recovery.getProperties() != null) {
+				Schema<?> latestStatus = recovery.getProperties().get("latestStatus");
+				if (latestStatus != null && latestStatus.getEnum() != null && !latestStatus.getEnum().contains(null)) {
+					latestStatus.addEnumItemObject(null);
+				}
+			}
 			Schema<?> historyItem = openApi.getComponents().getSchemas().get("AdminUserAccessHistoryItemResponse");
 			if (historyItem == null || historyItem.getProperties() == null) return;
 			for (String propertyName : List.of("beforeRole", "afterRole", "beforeStatus", "afterStatus")) {
@@ -215,6 +224,7 @@ public class OpenApiConfiguration {
 
 	private boolean requiresIdempotencyKey(String contractKey) {
 		return contractKey.equals("AdminCollectionFailureController#requestRecollection")
+			|| contractKey.equals("AdminCollectionFailureController#requestExecution")
 			|| contractKey.equals("AdminNotificationFailureController#reprocessDeadLetterEvent");
 	}
 
@@ -250,13 +260,13 @@ public class OpenApiConfiguration {
 				"NotificationHistoryController#findByChild" ->
 				addErrorResponse(operation, "404", "요청한 리소스를 찾을 수 없습니다.");
 			case "AccountWithdrawalController#requestWithdrawal" -> addErrorResponse(operation, "409", "탈퇴 상태를 변경할 수 없습니다.");
-			case "AdminCollectionFailureController#requestRecollection" ->
-				addNotFoundAndConflict(operation, "Idempotency-Key가 다른 재수집 요청에 이미 사용되었습니다.");
+			case "AdminCollectionFailureController#requestRecollection", "AdminCollectionFailureController#requestExecution" ->
+				addNotFoundAndConflict(operation, "COLLECTION_JOB_STATE_CONFLICT: 현재 상태에서는 요청할 수 없습니다. IDEMPOTENCY_KEY_CONFLICT: 키가 다른 actor/action/source 요청에 사용되었습니다.");
 			case "AdminNotificationFailureController#reprocessDeadLetterEvent" ->
 				addNotFoundAndConflict(operation, "DLQ 재처리 요청이 이미 처리되었거나 충돌했습니다.");
 			case "AdminUserController#promoteToAdmin", "AdminUserController#changeSuspension" ->
 				addNotFoundAndConflict(operation, "사용자 상태가 변경되어 요청을 처리할 수 없습니다.");
-			case "AdminUserController#findUser", "AdminUserController#findAccessHistory" ->
+			case "AdminUserController#findUser", "AdminUserController#findAccessHistory", "AdminCollectionFailureController#findCollectionJob" ->
 				addErrorResponse(operation, "404", "요청한 리소스를 찾을 수 없습니다.");
 			default -> { }
 		}

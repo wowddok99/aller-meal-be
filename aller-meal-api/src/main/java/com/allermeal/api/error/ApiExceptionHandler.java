@@ -1,37 +1,38 @@
 package com.allermeal.api.error;
 
+import com.allermeal.api.error.response.ApiError;
+import com.allermeal.api.error.response.ApiErrorResponse;
+import com.allermeal.application.account.AccountWithdrawalConflictException;
 import com.allermeal.application.admin.AdminAuthorizationException;
 import com.allermeal.application.admin.AdminCollectionJobNotFoundException;
+import com.allermeal.application.admin.AdminCollectionJobStateConflictException;
 import com.allermeal.application.admin.AdminInvalidCollectionRequestException;
 import com.allermeal.application.admin.AdminInvalidNotificationFailureRequestException;
+import com.allermeal.application.admin.AdminInvalidUserChangeRequestException;
+import com.allermeal.application.admin.AdminInvalidUserQueryRequestException;
 import com.allermeal.application.admin.AdminNotificationFailureNotFoundException;
 import com.allermeal.application.admin.AdminNotificationReprocessConflictException;
 import com.allermeal.application.admin.AdminRecollectionConflictException;
-import com.allermeal.application.admin.InvalidAdminUserRoleChangeException;
 import com.allermeal.application.admin.AdminUserNotFoundException;
-import com.allermeal.application.admin.AdminInvalidUserQueryRequestException;
-import com.allermeal.application.admin.AdminInvalidUserChangeRequestException;
 import com.allermeal.application.admin.AdminUserStateConflictException;
-import com.allermeal.application.account.AccountWithdrawalConflictException;
-import com.allermeal.api.error.response.ApiError;
-import com.allermeal.api.error.response.ApiErrorResponse;
-import com.allermeal.application.auth.DuplicateEmailException;
+import com.allermeal.application.admin.InvalidAdminUserRoleChangeException;
 import com.allermeal.application.auth.AccountSuspendedException;
-import com.allermeal.application.child.ChildProfileNotFoundException;
-import com.allermeal.application.child.InvalidChildProfileRequestException;
-import com.allermeal.application.child.InvalidChildAllergenRequestException;
-import com.allermeal.application.child.InvalidChildNotificationPreferenceRequestException;
-import com.allermeal.application.auth.EmailNotVerifiedException;
+import com.allermeal.application.auth.DuplicateEmailException;
 import com.allermeal.application.auth.EmailAlreadyVerifiedException;
+import com.allermeal.application.auth.EmailNotVerifiedException;
 import com.allermeal.application.auth.InvalidEmailVerificationTokenException;
 import com.allermeal.application.auth.InvalidLoginCredentialsException;
-import com.allermeal.application.auth.LoginTemporarilyLockedException;
 import com.allermeal.application.auth.InvalidPasswordResetTokenException;
 import com.allermeal.application.auth.InvalidSignupRequestException;
+import com.allermeal.application.auth.LoginTemporarilyLockedException;
 import com.allermeal.application.auth.UnauthorizedAccessException;
 import com.allermeal.application.auth.UserEmailNotFoundException;
-import com.allermeal.application.school.InvalidSchoolSearchRequestException;
+import com.allermeal.application.child.ChildProfileNotFoundException;
+import com.allermeal.application.child.InvalidChildAllergenRequestException;
+import com.allermeal.application.child.InvalidChildNotificationPreferenceRequestException;
+import com.allermeal.application.child.InvalidChildProfileRequestException;
 import com.allermeal.application.notification.InvalidNotificationHistoryRequestException;
+import com.allermeal.application.school.InvalidSchoolSearchRequestException;
 import com.allermeal.application.school.NeisApiException;
 import com.allermeal.application.school.NeisInvalidResponseException;
 import com.allermeal.application.school.SchoolNotFoundException;
@@ -48,6 +49,7 @@ import org.springframework.web.ErrorResponseException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -213,10 +215,16 @@ public final class ApiExceptionHandler {
 		return response(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "요청한 수집 작업을 찾을 수 없습니다.", request);
 	}
 
+	@ExceptionHandler(AdminCollectionJobStateConflictException.class)
+	ResponseEntity<ApiErrorResponse> handleCollectionJobStateConflict(HttpServletRequest request) {
+		return response(HttpStatus.CONFLICT, "COLLECTION_JOB_STATE_CONFLICT",
+			"현재 수집 작업 상태에서는 요청할 수 없습니다. 최신 상태를 확인해 주세요.", request);
+	}
+
 	@ExceptionHandler(AdminRecollectionConflictException.class)
 	ResponseEntity<ApiErrorResponse> handleAdminRecollectionConflict(HttpServletRequest request) {
 		return response(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_CONFLICT",
-			"Idempotency-Key가 다른 재수집 요청에 이미 사용되었습니다.", request);
+			"Idempotency-Key가 다른 수집 요청에 이미 사용되었습니다.", request);
 	}
 
 	@ExceptionHandler(AdminInvalidNotificationFailureRequestException.class)
@@ -264,6 +272,7 @@ public final class ApiExceptionHandler {
 		HandlerMethodValidationException.class,
 		BindException.class,
 		MissingServletRequestParameterException.class,
+		MissingRequestHeaderException.class,
 		MethodArgumentTypeMismatchException.class
 	})
 	ResponseEntity<ApiErrorResponse> handleInvalidRequest(HttpServletRequest request) {

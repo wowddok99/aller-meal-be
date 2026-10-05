@@ -12,6 +12,11 @@ public record AdminCollectionJobQuery(
 	UUID schoolId,
 	LocalDate mealDate,
 	MealType mealType,
-	String query
+	String query,
+	Boolean unresolvedFailure
 ) {
+	public AdminCollectionJobQuery(int page, int pageSize, CollectionJobStatus status, UUID schoolId,
+		LocalDate mealDate, MealType mealType, String query) {
+		this(page, pageSize, status, schoolId, mealDate, mealType, query, null);
+	}
 }

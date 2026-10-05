@@ -1,7 +1,8 @@
 package com.allermeal.api.admin;
 
-import com.allermeal.api.admin.response.AdminExternalApiLogPageResponse;
+import com.allermeal.api.admin.response.AdminCollectionJobItemResponse;
 import com.allermeal.api.admin.response.AdminCollectionJobPageResponse;
+import com.allermeal.api.admin.response.AdminExternalApiLogPageResponse;
 import com.allermeal.api.admin.response.AdminFailedCollectionJobPageResponse;
 import com.allermeal.api.admin.response.AdminMealItemLabelingPageResponse;
 import com.allermeal.api.admin.response.AdminRecollectionResponse;
@@ -9,12 +10,12 @@ import com.allermeal.api.auth.AuthenticationFilter;
 import com.allermeal.application.admin.AdminCollectionFailureService;
 import com.allermeal.domain.collection.CollectionJobId;
 import com.allermeal.domain.user.User;
-import jakarta.servlet.http.HttpServletRequest;
-import java.util.Objects;
-import java.util.UUID;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.servlet.http.HttpServletRequest;
+import java.util.Objects;
+import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -57,10 +58,17 @@ public final class AdminCollectionFailureController {
 		@Parameter(schema = @Schema(format = "date")) @RequestParam(required = false) String mealDate,
 		@Parameter(schema = @Schema(allowableValues = {"BREAKFAST", "LUNCH", "DINNER"}))
 		@RequestParam(required = false) String mealType,
-		@Parameter(schema = @Schema(maxLength = 100)) @RequestParam(required = false) String query
+		@Parameter(schema = @Schema(maxLength = 100)) @RequestParam(required = false) String query,
+		@Parameter(description = "true는 미해결 실패, false는 그 외 작업입니다.", schema = @Schema(type = "boolean"))
+		@RequestParam(required = false) Boolean unresolvedFailure
 	) {
 		return AdminCollectionJobPageResponse.from(collectionFailureService.findCollectionJobs(
-			currentUser(request), page, pageSize, status, schoolId, mealDate, mealType, query));
+			currentUser(request), page, pageSize, status, schoolId, mealDate, mealType, query, unresolvedFailure));
+	}
+
+	@GetMapping("/collection-jobs/{collectionJobId}")
+	public AdminCollectionJobItemResponse findCollectionJob(HttpServletRequest request, @PathVariable UUID collectionJobId) {
+		return AdminCollectionJobItemResponse.from(collectionFailureService.findCollectionJob(currentUser(request), new CollectionJobId(collectionJobId)));
 	}
 
 	@GetMapping("/meal-item-labelings")
@@ -105,6 +113,13 @@ public final class AdminCollectionFailureController {
 		@RequestHeader("Idempotency-Key") String idempotencyKey
 	) {
 		return AdminRecollectionResponse.from(collectionFailureService.requestRecollection(
+			currentUser(request), new CollectionJobId(collectionJobId), idempotencyKey));
+	}
+
+	@PostMapping("/collection-jobs/{collectionJobId}/execution")
+	public AdminRecollectionResponse requestExecution(HttpServletRequest request, @PathVariable UUID collectionJobId,
+		@RequestHeader("Idempotency-Key") String idempotencyKey) {
+		return AdminRecollectionResponse.from(collectionFailureService.requestExecution(
 			currentUser(request), new CollectionJobId(collectionJobId), idempotencyKey));
 	}
 
