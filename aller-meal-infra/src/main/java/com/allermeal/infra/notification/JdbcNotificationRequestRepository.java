@@ -138,9 +138,9 @@ public class JdbcNotificationRequestRepository implements NotificationRequestRep
 				        attempt_count = CASE WHEN (SELECT status FROM owner_account) = 'ACTIVE'
 				                             THEN :attemptCount ELSE attempt_count END,
 				        next_attempt_at = CASE WHEN (SELECT status FROM owner_account) = 'ACTIVE'
-				                               THEN :nextAttemptAt ELSE NULL END,
+				                               THEN CAST(:nextAttemptAt AS timestamptz) ELSE NULL END,
 				        sent_at = CASE WHEN (SELECT status FROM owner_account) = 'ACTIVE'
-				                  THEN :sentAt ELSE NULL END,
+				                  THEN CAST(:sentAt AS timestamptz) ELSE NULL END,
 				        failure_code = CASE
 				            WHEN (SELECT status FROM owner_account) = 'ACTIVE' THEN :failureCode
 				            WHEN (SELECT status FROM owner_account) = 'SUSPENDED' THEN 'OWNER_ACCESS_RESTRICTED'
