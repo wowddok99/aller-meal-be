@@ -25,7 +25,10 @@ import com.allermeal.application.auth.InvalidLoginCredentialsException;
 import com.allermeal.application.auth.InvalidPasswordResetTokenException;
 import com.allermeal.application.auth.InvalidSignupRequestException;
 import com.allermeal.application.auth.LoginTemporarilyLockedException;
+import org.springframework.dao.DataAccessException;
 import com.allermeal.application.auth.UnauthorizedAccessException;
+import com.allermeal.application.auth.RefreshInProgressException;
+import com.allermeal.application.auth.RefreshOperationExpiredException;
 import com.allermeal.application.auth.UserEmailNotFoundException;
 import com.allermeal.application.child.ChildProfileNotFoundException;
 import com.allermeal.application.child.InvalidChildAllergenRequestException;
@@ -56,6 +59,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.web.util.UrlPathHelper;
 
 @RestControllerAdvice
 public final class ApiExceptionHandler {
@@ -163,6 +167,28 @@ public final class ApiExceptionHandler {
 	ResponseEntity<ApiErrorResponse> handleAccountSuspended(HttpServletRequest request) {
 		return response(HttpStatus.FORBIDDEN, "ACCOUNT_SUSPENDED",
 			"계정 이용이 제한되었습니다. 문의가 필요하면 고객 지원에 연락해 주세요.", request);
+	}
+
+	@ExceptionHandler(RefreshInProgressException.class)
+	ResponseEntity<ApiErrorResponse> handleRefreshInProgress(HttpServletRequest request) {
+		return ResponseEntity.status(HttpStatus.CONFLICT).header("Retry-After", "1")
+			.cacheControl(org.springframework.http.CacheControl.noStore())
+			.body(response(HttpStatus.CONFLICT, "REFRESH_IN_PROGRESS", "로그인 갱신이 진행 중입니다.", request).getBody());
+	}
+
+	@ExceptionHandler(RefreshOperationExpiredException.class)
+	ResponseEntity<ApiErrorResponse> handleRefreshOperationExpired(HttpServletRequest request) {
+		return response(HttpStatus.CONFLICT, "REFRESH_OPERATION_EXPIRED", "로그인 갱신 예약이 만료되었습니다.", request);
+	}
+
+	@ExceptionHandler(DataAccessException.class)
+	ResponseEntity<ApiErrorResponse> handleDataAccessFailure(HttpServletRequest request) {
+		if (UrlPathHelper.defaultInstance.getPathWithinApplication(request).startsWith("/api/v1/auth/")) {
+			return response(HttpStatus.SERVICE_UNAVAILABLE, "AUTH_TEMPORARILY_UNAVAILABLE",
+				"인증 서비스를 일시적으로 사용할 수 없습니다.", request);
+		}
+		return response(HttpStatus.SERVICE_UNAVAILABLE, "SERVICE_UNAVAILABLE",
+			"서비스를 일시적으로 사용할 수 없습니다.", request);
 	}
 
 	@ExceptionHandler(UnauthorizedAccessException.class)

@@ -42,7 +42,16 @@ public final class HmacSha256AccessTokenIssuer implements AccessTokenIssuer {
 
 	@Override
 	public String issue(User user, Duration ttl) {
-		Instant expiresAt = clock.instant().plus(ttl);
+		return issueUntil(user, clock.instant().plus(ttl));
+	}
+
+	@Override
+	public String issueUntil(User user, Instant expiresAt) {
+		return issueUntil(user, expiresAt, null);
+	}
+
+	@Override
+	public String issueUntil(User user, Instant expiresAt, String sessionId) {
 		String header = encodeJson(Map.of("alg", "HS256", "typ", "JWT"));
 		Map<String, Object> payload = new LinkedHashMap<>();
 		payload.put("sub", user.id().value().toString());
@@ -50,6 +59,7 @@ public final class HmacSha256AccessTokenIssuer implements AccessTokenIssuer {
 		payload.put("status", user.status().name());
 		payload.put("emailVerificationStatus", user.emailVerificationStatus().name());
 		payload.put("sessionVersion", user.sessionVersion());
+		if (sessionId != null) payload.put("sessionId", sessionId);
 		payload.put("exp", expiresAt.getEpochSecond());
 		String body = encodeJson(payload);
 		String signatureInput = header + "." + body;
@@ -82,7 +92,8 @@ public final class HmacSha256AccessTokenIssuer implements AccessTokenIssuer {
 				UserStatus.valueOf(payload.get("status").asText()),
 				EmailVerificationStatus.valueOf(payload.get("emailVerificationStatus").asText()),
 				sessionVersion.longValue(),
-				expiresAt);
+				expiresAt,
+				payload.hasNonNull("sessionId") ? payload.get("sessionId").asText() : null);
 		} catch (UnauthorizedAccessException exception) {
 			throw exception;
 		} catch (RuntimeException exception) {

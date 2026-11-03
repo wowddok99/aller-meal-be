@@ -57,6 +57,10 @@ public class OpenApiConfiguration {
 		Map.entry("AuthController#requestPasswordReset", "requestPasswordReset"),
 		Map.entry("AuthController#confirmPasswordReset", "confirmPasswordReset"),
 		Map.entry("AuthController#refresh", "refreshAuthentication"),
+		Map.entry("AuthController#reserveRefresh", "reserveRefreshOperation"),
+		Map.entry("AuthController#executeRefresh", "executeRefreshOperation"),
+		Map.entry("AuthController#cancelRefresh", "cancelRefreshOperation"),
+		Map.entry("AuthController#sessionStatus", "getRefreshSessionStatus"),
 		Map.entry("AuthController#logout", "logout"),
 		Map.entry("SchoolController#search", "searchPublicSchools"),
 		Map.entry("SchoolController#findById", "getPublicSchool"),
@@ -170,6 +174,9 @@ public class OpenApiConfiguration {
 			boolean authenticated = requiresAccessAuthentication(handlerMethod);
 			if (authenticated) {
 				addAccessSecurity(operation, csrfRequired);
+				operation.addParametersItem(new Parameter().in("header").name("X-Expected-Session-Id").required(false)
+					.description("현재 클라이언트 세션 ID입니다. 이 헤더를 보내면 유효한 refresh_token 쿠키가 필요하며 Access Token과 활성 Refresh Token의 세션 및 사용자가 일치해야 합니다.")
+					.schema(new StringSchema()));
 				operation.addTagsItem(contractKey.startsWith("Admin") ? "admin" : "member");
 			}
 			if (csrfRequired) addCsrfParameters(operation);
@@ -207,7 +214,9 @@ public class OpenApiConfiguration {
 	}
 
 	private boolean requiresRefreshAuthentication(String contractKey) {
-		return contractKey.equals("AuthController#refresh") || contractKey.equals("AuthController#logout");
+		return contractKey.equals("AuthController#refresh") || contractKey.equals("AuthController#logout")
+			|| contractKey.equals("AuthController#reserveRefresh") || contractKey.equals("AuthController#executeRefresh")
+			|| contractKey.equals("AuthController#cancelRefresh") || contractKey.equals("AuthController#sessionStatus");
 	}
 
 	private boolean isMealQuery(String contractKey) {
@@ -215,7 +224,8 @@ public class OpenApiConfiguration {
 	}
 
 	private boolean writesAuthenticationCookies(String contractKey) {
-		return contractKey.equals("AuthController#login") || contractKey.equals("AuthController#refresh");
+		return contractKey.equals("AuthController#login") || contractKey.equals("AuthController#refresh")
+			|| contractKey.equals("AuthController#executeRefresh");
 	}
 
 	private boolean clearsAuthenticationCookies(String contractKey) {
@@ -234,8 +244,9 @@ public class OpenApiConfiguration {
 		if (hasClientInput(handlerMethod)) addErrorResponse(operation, "400", "요청 값 또는 형식이 올바르지 않습니다.");
 		if (hasRequestBody(handlerMethod)) addErrorResponse(operation, "415", "지원하지 않는 요청 본문 형식입니다.");
 		if (authenticated) {
-			addErrorResponse(operation, "401", "로그인이 필요합니다.");
+			addErrorResponse(operation, "401", "로그인이 필요하거나 기대한 세션이 활성 상태가 아닙니다. SESSION_INACTIVE는 자동 refresh 없이 세션을 확인해야 합니다.");
 			addErrorResponse(operation, "403", "권한 또는 이메일 인증 상태가 올바르지 않습니다.");
+			addErrorResponse(operation, "503", "기대 세션을 확인하는 인증 저장소를 일시적으로 사용할 수 없습니다.");
 		}
 		if (csrfRequired) addErrorResponse(operation, "403", "인증 Cookie 사용 시 Origin 또는 CSRF 검증에 실패했습니다.");
 		if (contractKey.startsWith("AuthController#")) addErrorResponse(operation, "429", "인증 API 요청이 너무 많습니다.");
@@ -249,7 +260,19 @@ public class OpenApiConfiguration {
 				addErrorResponse(operation, "401", "이메일 또는 비밀번호가 올바르지 않습니다.");
 				addErrorResponse(operation, "403", "이메일 인증 후 이용해 주세요.");
 			}
-			case "AuthController#refresh" -> addErrorResponse(operation, "401", "유효한 Refresh Token이 필요합니다.");
+			case "AuthController#logout" -> {
+				addErrorResponse(operation, "401", "기대 세션과 Refresh Token 세션이 일치하지 않거나 세션을 확인할 수 없습니다.");
+				addErrorResponse(operation, "503", "인증 서비스를 일시적으로 사용할 수 없습니다.");
+				operation.getParameters().stream().filter(parameter -> "X-Expected-Session-Id".equals(parameter.getName()))
+					.forEach(parameter -> parameter.description("선택한 세션 ID입니다. Refresh Token 세션과 다르면 폐기와 쿠키 삭제 없이 401을 반환합니다."));
+			}
+			case "AuthController#refresh", "AuthController#reserveRefresh", "AuthController#executeRefresh",
+				"AuthController#cancelRefresh", "AuthController#sessionStatus" -> {
+				addErrorResponse(operation, "401", "유효한 Refresh Token이 필요합니다.");
+				addErrorResponse(operation, "503", "인증 서비스를 일시적으로 사용할 수 없습니다.");
+				if (contractKey.equals("AuthController#reserveRefresh") || contractKey.equals("AuthController#executeRefresh"))
+					addErrorResponse(operation, "409", "갱신이 진행 중이거나 예약이 만료되었습니다.");
+			}
 			case "SchoolController#search" -> addErrorResponse(operation, "502", "학교 정보 제공 기관 요청 또는 응답 처리에 실패했습니다.");
 			case "SchoolController#findById", "PublicMealController#findDaily", "PublicMealController#findWeekly",
 				"ChildProfileController#create", "ChildProfileController#find", "ChildProfileController#update",

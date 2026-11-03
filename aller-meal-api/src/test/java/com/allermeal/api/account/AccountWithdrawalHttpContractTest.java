@@ -255,7 +255,7 @@ final class AccountWithdrawalHttpContractTest {
 				new AuthCookieWriter(false, "Lax", Duration.ofMinutes(15), Duration.ofDays(14)));
 			AuthenticationRequestProtectionFilter protection = new AuthenticationRequestProtectionFilter(
 				new OneRequestRedisTemplate(), 20, Duration.ofMinutes(1), ORIGIN);
-			AuthenticationFilter authentication = new AuthenticationFilter(accessTokenIssuer, userRepository);
+			AuthenticationFilter authentication = new AuthenticationFilter(accessTokenIssuer, userRepository, refreshService);
 			mvc = MockMvcBuilders.standaloneSetup(new AccountWithdrawalController(withdrawalService), authController)
 				.setControllerAdvice(new ApiExceptionHandler())
 				.addFilters(new TraceIdFilter(), protection, authentication)
@@ -337,6 +337,11 @@ final class AccountWithdrawalHttpContractTest {
 		}
 
 		@Override
+		public String issueUntil(User user, Instant expiresAt, String sessionId) {
+			return issue(user, Duration.between(NOW, expiresAt));
+		}
+
+		@Override
 		public AccessTokenClaims verify(String token) {
 			AccessTokenClaims claims = claimsByToken.get(token);
 			if (claims == null) {
@@ -368,7 +373,7 @@ final class AccountWithdrawalHttpContractTest {
 				return RefreshTokenRotationResult.missing();
 			}
 			activeHash = command.newTokenHash();
-			return RefreshTokenRotationResult.rotated(userId, sessionVersion);
+			return RefreshTokenRotationResult.rotated(userId, sessionVersion, null, null, null, "test-family");
 		}
 
 		@Override

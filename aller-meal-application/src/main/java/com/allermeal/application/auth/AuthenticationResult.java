@@ -10,6 +10,8 @@ public record AuthenticationResult(
 	String accessToken,
 	Instant accessTokenExpiresAt,
 	String refreshToken,
-	Instant refreshTokenExpiresAt
+	Instant refreshTokenExpiresAt,
+	Boolean rememberMe,
+	String sessionId
 ) {
 }

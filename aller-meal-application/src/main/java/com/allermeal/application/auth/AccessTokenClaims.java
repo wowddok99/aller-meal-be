@@ -12,6 +12,11 @@ public record AccessTokenClaims(
 	UserStatus status,
 	EmailVerificationStatus emailVerificationStatus,
 	long sessionVersion,
-	Instant expiresAt
+	Instant expiresAt,
+	String sessionId
 ) {
+	public AccessTokenClaims(UserId userId, UserRole role, UserStatus status,
+		EmailVerificationStatus emailVerificationStatus, long sessionVersion, Instant expiresAt) {
+		this(userId, role, status, emailVerificationStatus, sessionVersion, expiresAt, null);
+	}
 }

@@ -8,6 +8,7 @@ import com.allermeal.api.admin.AdminCollectionFailureController;
 import com.allermeal.api.admin.AdminNotificationFailureController;
 import com.allermeal.application.admin.AdminCollectionFailureService;
 import com.allermeal.application.admin.AdminNotificationFailureService;
+import com.allermeal.application.auth.RefreshService;
 import com.allermeal.application.port.out.AccessTokenIssuer;
 import com.allermeal.application.port.out.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -50,6 +51,9 @@ final class AdminOperationOpenApiContractTest {
 
 	@MockitoBean
 	private UserRepository userRepository;
+
+	@MockitoBean
+	private RefreshService refreshService;
 
 	@MockitoBean
 	private StringRedisTemplate redisTemplate;

@@ -17,11 +17,13 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.UrlPathHelper;
 
 @Component
 @Order(TraceIdFilter.ORDER + 1)
@@ -53,10 +55,20 @@ public final class AuthenticationRequestProtectionFilter extends OncePerRequestF
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
 		throws ServletException, IOException {
-		if (request.getRequestURI().startsWith("/api/v1/auth/")) {
-			Long count = redis.execute(RATE_LIMIT_SCRIPT,
-				List.of("auth-rate-limit:v1:" + request.getRemoteAddr() + ":" + request.getRequestURI()),
+		String path = UrlPathHelper.defaultInstance.getPathWithinApplication(request);
+		if (path.equals("/api/v1/auth/session-status") || path.startsWith("/api/v1/auth/refresh-operations")) {
+			response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+		}
+		if (path.startsWith("/api/v1/auth/")) {
+			Long count;
+			try {
+			count = redis.execute(RATE_LIMIT_SCRIPT,
+				List.of("auth-rate-limit:v1:" + request.getRemoteAddr() + ":" + rateLimitPath(path)),
 				Long.toString(Math.max(1, window.toSeconds())));
+			} catch (DataAccessException exception) {
+				writeError(response, request, 503, "AUTH_TEMPORARILY_UNAVAILABLE", "인증 서비스를 일시적으로 사용할 수 없습니다.");
+				return;
+			}
 			if (count != null && count > maxRequests) { writeError(response, request, 429, "AUTH_RATE_LIMITED", "요청이 너무 많습니다."); return; }
 		}
 		if (requiresCsrf(request) && hasAuthenticationCookie(request) && !validCsrf(request)) {
@@ -65,8 +77,23 @@ public final class AuthenticationRequestProtectionFilter extends OncePerRequestF
 		chain.doFilter(request, response);
 	}
 
+	private String rateLimitPath(String path) {
+		if (path.startsWith("/api/v1/auth/refresh-operations/")) {
+			if (path.endsWith("/execute")) return "/api/v1/auth/refresh-operations/{operationId}/execute";
+			if (path.endsWith("/cancel")) return "/api/v1/auth/refresh-operations/{operationId}/cancel";
+			return "/api/v1/auth/unknown";
+		}
+		return switch (path) {
+			case "/api/v1/auth/signup", "/api/v1/auth/login", "/api/v1/auth/refresh",
+				"/api/v1/auth/logout", "/api/v1/auth/session-status", "/api/v1/auth/refresh-operations",
+				"/api/v1/auth/email-verifications", "/api/v1/auth/email-verifications/confirm",
+				"/api/v1/auth/password-resets", "/api/v1/auth/password-resets/confirm" -> path;
+			default -> "/api/v1/auth/unknown";
+		};
+	}
+
 	private boolean requiresCsrf(HttpServletRequest request) {
-		return request.getRequestURI().startsWith("/api/v1/")
+		return UrlPathHelper.defaultInstance.getPathWithinApplication(request).startsWith("/api/v1/")
 			&& !HttpMethod.GET.matches(request.getMethod()) && !HttpMethod.HEAD.matches(request.getMethod())
 			&& !HttpMethod.OPTIONS.matches(request.getMethod());
 	}

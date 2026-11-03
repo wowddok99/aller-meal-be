@@ -9,6 +9,9 @@ import com.allermeal.api.auth.response.EmailVerificationConfirmResponse;
 import com.allermeal.api.auth.response.EmailVerificationRequestResponse;
 import com.allermeal.api.auth.response.LoginResponse;
 import com.allermeal.api.auth.response.RefreshResponse;
+import com.allermeal.api.auth.response.RefreshOperationResponse;
+import com.allermeal.api.auth.response.RefreshOperationCancelResponse;
+import com.allermeal.api.auth.response.RefreshSessionStatusResponse;
 import com.allermeal.api.auth.response.SignupResponse;
 import com.allermeal.application.auth.AuthenticationResult;
 import com.allermeal.application.auth.EmailVerificationConfirmer;
@@ -28,9 +31,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.http.CacheControl;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -98,7 +104,7 @@ public final class AuthController {
 		if (request == null) {
 			throw new InvalidSignupRequestException("로그인 요청 본문은 필수입니다.");
 		}
-		AuthenticationResult result = loginService.login(new LoginCommand(request.email(), request.password()));
+		AuthenticationResult result = loginService.login(new LoginCommand(request.email(), request.password(), request.rememberMe()));
 		cookieWriter.writeAuthenticationCookies(result, response);
 		return ResponseEntity.ok(LoginResponse.from(result));
 	}
@@ -131,13 +137,52 @@ public final class AuthController {
 		return ResponseEntity.ok(RefreshResponse.from(result));
 	}
 
+	@PostMapping("/refresh-operations")
+	@ResponseStatus(HttpStatus.CREATED)
+	public ResponseEntity<RefreshOperationResponse> reserveRefresh(
+		@CookieValue(name = AuthCookieWriter.REFRESH_TOKEN_COOKIE, required = false) String refreshToken
+	) {
+		var result = refreshService.reserve(refreshToken);
+		return ResponseEntity.status(HttpStatus.CREATED).cacheControl(CacheControl.noStore())
+			.body(new RefreshOperationResponse(result.operationId(), result.sessionId(), result.expiresAt()));
+	}
+
+	@PostMapping("/refresh-operations/{operationId}/execute")
+	public ResponseEntity<RefreshResponse> executeRefresh(
+		@CookieValue(name = AuthCookieWriter.REFRESH_TOKEN_COOKIE, required = false) String refreshToken,
+		@PathVariable String operationId, HttpServletResponse response
+	) {
+		AuthenticationResult result = refreshService.execute(refreshToken, operationId);
+		cookieWriter.writeAuthenticationCookies(result, response);
+		return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(RefreshResponse.from(result));
+	}
+
+	@PostMapping("/refresh-operations/{operationId}/cancel")
+	public ResponseEntity<RefreshOperationCancelResponse> cancelRefresh(
+		@CookieValue(name = AuthCookieWriter.REFRESH_TOKEN_COOKIE, required = false) String refreshToken,
+		@PathVariable String operationId
+	) {
+		return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+			.body(new RefreshOperationCancelResponse(refreshService.cancel(refreshToken, operationId)));
+	}
+
+	@PostMapping("/session-status")
+	public ResponseEntity<RefreshSessionStatusResponse> sessionStatus(
+		@CookieValue(name = AuthCookieWriter.REFRESH_TOKEN_COOKIE, required = false) String refreshToken
+	) {
+		var result = refreshService.sessionStatus(refreshToken);
+		return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+			.body(new RefreshSessionStatusResponse(result.sessionId(), result.userId()));
+	}
+
 	@PostMapping("/logout")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void logout(
 		@CookieValue(name = AuthCookieWriter.REFRESH_TOKEN_COOKIE, required = false) String refreshToken,
+		@RequestHeader(name = "X-Expected-Session-Id", required = false) String expectedSessionId,
 		HttpServletResponse response
 	) {
-		refreshService.logout(refreshToken);
+		refreshService.logout(refreshToken, expectedSessionId);
 		cookieWriter.clearAuthenticationCookies(response);
 	}
 }

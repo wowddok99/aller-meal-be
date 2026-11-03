@@ -8,7 +8,8 @@ public record RefreshResponse(
 	UUID userId,
 	String emailVerificationStatus,
 	Instant accessTokenExpiresAt,
-	Instant refreshTokenExpiresAt
+	Instant refreshTokenExpiresAt,
+	String sessionId
 ) {
 
 	public static RefreshResponse from(AuthenticationResult result) {
@@ -16,6 +17,7 @@ public record RefreshResponse(
 			result.userId().value(),
 			result.emailVerificationStatus().name(),
 			result.accessTokenExpiresAt(),
-			result.refreshTokenExpiresAt());
+			result.refreshTokenExpiresAt(),
+			result.sessionId());
 	}
 }
