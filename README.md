@@ -36,7 +36,15 @@ PostgreSQL, Redis, RabbitMQ, MinIO, Mailpit이 로컬 인터페이스에 기동�
 환경변수 기준과 IntelliJ 실행 설정은 `.codex/docs/environment-variables.md`를
 따릅니다.
 
+로그인 상태 유지 기능의 배포 및 롤백 전제는
+[인증 배포 절차](docs/auth-session-deployment.md)를 따릅니다.
+
 ## 빌드
+
+테스트를 포함한 빌드에는 Docker CLI와 실행 중인 Docker daemon이 필요합니다.
+Redis 통합 테스트는 `redis:8.0.2-alpine` 이미지의 격리 컨테이너를 생성하고
+검증 후 제거합니다. 이미지가 없으면 Docker가 내려받으므로 CI에서도 이미지에
+접근할 수 있어야 합니다. Docker를 사용할 수 없으면 테스트가 실패합니다.
 
 ```powershell
 .\gradlew.bat build

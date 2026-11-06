@@ -1,4 +1,4 @@
 package com.allermeal.api.auth.request;
 
-public record LoginRequest(String email, String password) {
+public record LoginRequest(String email, String password, Boolean rememberMe) {
 }

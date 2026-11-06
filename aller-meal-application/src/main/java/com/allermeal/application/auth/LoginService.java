@@ -9,6 +9,7 @@ import com.allermeal.application.port.out.RefreshTokenStore;
 import com.allermeal.application.port.out.UserRepository;
 import com.allermeal.application.port.out.VerificationTokenGenerator;
 import com.allermeal.application.port.out.command.RefreshTokenCommand;
+import com.allermeal.application.port.out.result.RefreshTokenLoginSnapshotResult;
 import com.allermeal.domain.user.EmailSearchHash;
 import com.allermeal.domain.user.EmailVerificationStatus;
 import com.allermeal.domain.user.User;
@@ -69,6 +70,13 @@ public final class LoginService {
 		}
 		User user = userRepository.findByEmailSearchHash(emailSearchHash)
 			.orElseThrow(() -> invalidCredentials(emailSearchHash.value()));
+		RefreshTokenLoginSnapshotResult loginSnapshot = refreshTokenStore.loginSnapshot(user.id());
+		var snapshotUserId = user.id();
+		user = userRepository.findByEmailSearchHash(emailSearchHash)
+			.orElseThrow(() -> invalidCredentials(emailSearchHash.value()));
+		if (!snapshotUserId.equals(user.id())) {
+			throw invalidCredentials(emailSearchHash.value());
+		}
 		if (!passwordHasher.matches(password, user.passwordHash().value())) {
 			throw invalidCredentials(emailSearchHash.value());
 		}
@@ -85,26 +93,37 @@ public final class LoginService {
 			throw new LoginTemporarilyLockedException();
 		}
 		Instant issuedAt = clock.instant();
-		Instant accessExpiresAt = issuedAt.plus(accessTokenTtl);
-		Instant refreshExpiresAt = issuedAt.plus(refreshTokenTtl);
-		String accessToken = accessTokenIssuer.issue(user, accessTokenTtl);
-		String refreshTokenFamilyId = refreshTokenGenerator.generate();
+		Duration absoluteTtl = command.rememberMe() == null ? null : RefreshSessionPolicy.ABSOLUTE_TTL;
+		Duration effectiveAccessTtl = absoluteTtl != null && absoluteTtl.compareTo(accessTokenTtl) < 0
+			? absoluteTtl : accessTokenTtl;
+		Duration effectiveRefreshTtl = absoluteTtl == null ? refreshTokenTtl : RefreshSessionPolicy.SLIDING_TTL;
+		Instant accessExpiresAt = issuedAt.plus(effectiveAccessTtl);
+		Instant refreshExpiresAt = issuedAt.plus(effectiveRefreshTtl);
+		String refreshTokenFamilyId = (command.rememberMe() == null ? "" : "n")
+			+ tokenHasher.hash(refreshTokenGenerator.generate());
+		String sessionId = tokenHasher.hash(refreshTokenFamilyId);
+		String accessToken = accessTokenIssuer.issueUntil(user, accessExpiresAt, sessionId);
 		String refreshToken = refreshTokenGenerator.generate();
 		refreshTokenStore.store(new RefreshTokenCommand(
 			user.id(),
-			tokenHasher.hash(refreshTokenFamilyId),
+			refreshTokenFamilyId,
 			tokenHasher.hash(refreshToken),
 			issuedAt,
 			refreshExpiresAt,
 			user.sessionVersion(),
-			refreshTokenTtl));
+			effectiveRefreshTtl,
+			command.rememberMe(),
+			absoluteTtl == null ? null : issuedAt.plus(absoluteTtl),
+			loginSnapshot));
 		return new AuthenticationResult(
 			user.id(),
 			user.emailVerificationStatus(),
 			accessToken,
 			accessExpiresAt,
 			refreshToken,
-			refreshExpiresAt);
+			refreshExpiresAt,
+			command.rememberMe(),
+			sessionId);
 	}
 
 	private InvalidLoginCredentialsException invalidCredentials(String emailHash) {

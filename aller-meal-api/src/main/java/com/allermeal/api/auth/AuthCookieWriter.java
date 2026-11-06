@@ -3,6 +3,7 @@ package com.allermeal.api.auth;
 import com.allermeal.application.auth.AuthenticationResult;
 import jakarta.servlet.http.HttpServletResponse;
 import java.time.Duration;
+import java.time.Instant;
 import java.security.SecureRandom;
 import java.util.Base64;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,23 +37,33 @@ public final class AuthCookieWriter {
 	}
 
 	public void writeAuthenticationCookies(AuthenticationResult result, HttpServletResponse response) {
+		boolean sessionOnly = Boolean.FALSE.equals(result.rememberMe());
+		Duration accessMaxAge = sessionOnly ? Duration.ofSeconds(-1)
+			: result.rememberMe() == null ? accessTokenTtl : remaining(result.accessTokenExpiresAt());
+		Duration refreshMaxAge = sessionOnly ? Duration.ofSeconds(-1)
+			: result.rememberMe() == null ? refreshTokenTtl : remaining(result.refreshTokenExpiresAt());
 		response.addHeader(HttpHeaders.SET_COOKIE, cookie(
 			ACCESS_TOKEN_COOKIE,
 			result.accessToken(),
-			accessTokenTtl).toString());
+			accessMaxAge).toString());
 		response.addHeader(HttpHeaders.SET_COOKIE, cookie(
 			REFRESH_TOKEN_COOKIE,
 			result.refreshToken(),
-			refreshTokenTtl).toString());
+			refreshMaxAge).toString());
 		byte[] bytes = new byte[32];
 		secureRandom.nextBytes(bytes);
-		response.addHeader(HttpHeaders.SET_COOKIE, csrfCookie(Base64.getUrlEncoder().withoutPadding().encodeToString(bytes), refreshTokenTtl).toString());
+		response.addHeader(HttpHeaders.SET_COOKIE, csrfCookie(Base64.getUrlEncoder().withoutPadding().encodeToString(bytes), refreshMaxAge).toString());
 	}
 
 	public void clearAuthenticationCookies(HttpServletResponse response) {
 		response.addHeader(HttpHeaders.SET_COOKIE, cookie(ACCESS_TOKEN_COOKIE, "", Duration.ZERO).toString());
 		response.addHeader(HttpHeaders.SET_COOKIE, cookie(REFRESH_TOKEN_COOKIE, "", Duration.ZERO).toString());
 		response.addHeader(HttpHeaders.SET_COOKIE, csrfCookie("", Duration.ZERO).toString());
+	}
+
+	private Duration remaining(Instant expiresAt) {
+		Duration remaining = Duration.between(Instant.now(), expiresAt);
+		return remaining.isNegative() ? Duration.ZERO : remaining;
 	}
 
 	private ResponseCookie cookie(String name, String value, Duration maxAge) {

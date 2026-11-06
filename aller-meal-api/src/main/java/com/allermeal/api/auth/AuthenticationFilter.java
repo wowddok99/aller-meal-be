@@ -2,6 +2,9 @@ package com.allermeal.api.auth;
 
 import com.allermeal.api.error.TraceIdFilter;
 import com.allermeal.application.auth.AccessTokenClaims;
+import com.allermeal.application.auth.RefreshService;
+import com.allermeal.application.auth.RefreshSessionStatusResult;
+import com.allermeal.application.auth.UnauthorizedAccessException;
 import com.allermeal.application.port.out.AccessTokenIssuer;
 import com.allermeal.application.port.out.UserRepository;
 import com.allermeal.domain.user.EmailVerificationStatus;
@@ -16,10 +19,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Optional;
 import org.springframework.core.annotation.Order;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.UrlPathHelper;
 
 @Component
 @Order(TraceIdFilter.ORDER + 2)
@@ -29,10 +34,12 @@ public final class AuthenticationFilter extends OncePerRequestFilter {
 
 	private final AccessTokenIssuer accessTokenIssuer;
 	private final UserRepository userRepository;
+	private final RefreshService refreshService;
 
-	public AuthenticationFilter(AccessTokenIssuer accessTokenIssuer, UserRepository userRepository) {
+	public AuthenticationFilter(AccessTokenIssuer accessTokenIssuer, UserRepository userRepository, RefreshService refreshService) {
 		this.accessTokenIssuer = accessTokenIssuer;
 		this.userRepository = userRepository;
+		this.refreshService = refreshService;
 	}
 
 	@Override
@@ -45,7 +52,7 @@ public final class AuthenticationFilter extends OncePerRequestFilter {
 			filterChain.doFilter(request, response);
 			return;
 		}
-		if (!request.getRequestURI().startsWith("/api/v1/")) {
+		if (!requestPath(request).startsWith("/api/v1/")) {
 			filterChain.doFilter(request, response);
 			return;
 		}
@@ -60,6 +67,27 @@ public final class AuthenticationFilter extends OncePerRequestFilter {
 		} catch (RuntimeException exception) {
 			writeError(response, request, HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
 			return;
+		}
+		String expectedSessionId = request.getHeader("X-Expected-Session-Id");
+		if (expectedSessionId != null && !expectedSessionId.equals(claims.sessionId())) {
+			writeError(response, request, HttpStatus.UNAUTHORIZED, "SESSION_INACTIVE", "로그인 상태를 다시 확인해 주세요.");
+			return;
+		}
+		if (expectedSessionId != null) {
+			try {
+				RefreshSessionStatusResult session = refreshService.sessionStatus(resolveCookie(request, AuthCookieWriter.REFRESH_TOKEN_COOKIE).orElse(null));
+				if (!expectedSessionId.equals(session.sessionId()) || !claims.userId().value().equals(session.userId())) {
+					writeError(response, request, HttpStatus.UNAUTHORIZED, "SESSION_INACTIVE", "로그인 상태를 다시 확인해 주세요.");
+					return;
+				}
+			} catch (UnauthorizedAccessException exception) {
+				writeError(response, request, HttpStatus.UNAUTHORIZED, "SESSION_INACTIVE", "로그인 상태를 다시 확인해 주세요.");
+				return;
+			} catch (DataAccessException exception) {
+				writeError(response, request, HttpStatus.SERVICE_UNAVAILABLE, "AUTH_TEMPORARILY_UNAVAILABLE",
+					"인증 서비스를 일시적으로 사용할 수 없습니다.");
+				return;
+			}
 		}
 		User user = userRepository.findById(claims.userId()).orElse(null);
 		if (user == null) {
@@ -84,12 +112,15 @@ public final class AuthenticationFilter extends OncePerRequestFilter {
 	}
 
 	private boolean isPublicRequest(HttpServletRequest request) {
-		String path = request.getRequestURI();
+		String path = requestPath(request);
 		return path.equals("/api/v1/allergens")
 			|| path.startsWith("/api/v1/public/")
 			|| path.equals("/api/v1/auth/signup")
 			|| path.equals("/api/v1/auth/login")
 			|| path.equals("/api/v1/auth/refresh")
+			|| path.equals("/api/v1/auth/session-status")
+			|| path.equals("/api/v1/auth/refresh-operations")
+			|| path.startsWith("/api/v1/auth/refresh-operations/")
 			|| path.equals("/api/v1/auth/logout")
 			|| path.equals("/api/v1/auth/email-verifications")
 			|| path.equals("/api/v1/auth/email-verifications/confirm")
@@ -102,10 +133,14 @@ public final class AuthenticationFilter extends OncePerRequestFilter {
 			return true;
 		}
 		return status == UserStatus.WITHDRAWAL_PENDING
-			&& request.getRequestURI().equals("/api/v1/account/withdrawal")
+			&& requestPath(request).equals("/api/v1/account/withdrawal")
 			&& (request.getMethod().equals("GET")
 				|| request.getMethod().equals("POST")
 				|| request.getMethod().equals("DELETE"));
+	}
+
+	private String requestPath(HttpServletRequest request) {
+		return UrlPathHelper.defaultInstance.getPathWithinApplication(request);
 	}
 
 	private Optional<String> resolveToken(HttpServletRequest request) {
@@ -114,12 +149,16 @@ public final class AuthenticationFilter extends OncePerRequestFilter {
 			return Optional.of(authorization.substring("Bearer ".length()).trim())
 				.filter(value -> !value.isBlank());
 		}
+		return resolveCookie(request, AuthCookieWriter.ACCESS_TOKEN_COOKIE);
+	}
+
+	private Optional<String> resolveCookie(HttpServletRequest request, String name) {
 		Cookie[] cookies = request.getCookies();
 		if (cookies == null) {
 			return Optional.empty();
 		}
 		return Arrays.stream(cookies)
-			.filter(cookie -> AuthCookieWriter.ACCESS_TOKEN_COOKIE.equals(cookie.getName()))
+			.filter(cookie -> name.equals(cookie.getName()))
 			.map(Cookie::getValue)
 			.filter(value -> value != null && !value.isBlank())
 			.findFirst();

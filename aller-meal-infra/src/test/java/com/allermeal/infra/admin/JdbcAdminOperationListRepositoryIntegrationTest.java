@@ -122,6 +122,9 @@ final class JdbcAdminOperationListRepositoryIntegrationTest {
 			schoolId, MEAL_DATE, MealType.LUNCH, "항도"));
 		assertTrue(lastPage.items().isEmpty());
 		assertEquals(2, lastPage.totalCount());
+		var unresolved = collectionJobs.findAdminPage(new AdminCollectionJobQuery(1, 20, null,
+			schoolId, MEAL_DATE, MealType.LUNCH, null, true));
+		assertEquals(2, unresolved.totalCount());
 	}
 
 	@Test
@@ -269,6 +272,8 @@ final class JdbcAdminOperationListRepositoryIntegrationTest {
 	private void createFixtureTables() {
 		jdbc.execute("CREATE TABLE schools (school_id UUID PRIMARY KEY, name VARCHAR(200) NOT NULL)");
 		jdbc.execute("CREATE TABLE collection_jobs (collection_job_id UUID PRIMARY KEY, school_id UUID NOT NULL, meal_date DATE NOT NULL, meal_type VARCHAR(20) NOT NULL, status VARCHAR(20) NOT NULL, response_time_millis BIGINT, collection_duration_millis BIGINT, lease_until TIMESTAMPTZ, raw_object_id UUID, failure_code VARCHAR(100), failure_message VARCHAR(1000), created_at TIMESTAMPTZ NOT NULL, updated_at TIMESTAMPTZ NOT NULL)");
+		// 이 fixture에는 복구 요청이 없으므로 실패 작업만 미해결 상태다.
+		jdbc.execute("CREATE VIEW collection_job_recovery_summaries AS SELECT collection_job_id, status = 'FAILED' AS unresolved_failure FROM collection_jobs");
 		jdbc.execute("CREATE TABLE meals (meal_id UUID PRIMARY KEY, school_id UUID NOT NULL, meal_date DATE NOT NULL, meal_type VARCHAR(20) NOT NULL)");
 		jdbc.execute("CREATE TABLE meal_items (meal_item_id UUID PRIMARY KEY, meal_id UUID NOT NULL, name VARCHAR(300) NOT NULL, display_order INT NOT NULL, labeling_status VARCHAR(30) NOT NULL, created_at TIMESTAMPTZ NOT NULL, updated_at TIMESTAMPTZ NOT NULL)");
 		jdbc.execute("CREATE TABLE outbox_events (event_id UUID PRIMARY KEY, event_type VARCHAR(100) NOT NULL, payload JSONB NOT NULL, status VARCHAR(20) NOT NULL, occurred_at TIMESTAMPTZ NOT NULL, published_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL, updated_at TIMESTAMPTZ NOT NULL)");

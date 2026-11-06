@@ -51,15 +51,18 @@ final class AdminOperationListFilterForwardingTest {
 		AdminCollectionJobPageResult expectedCollection = new AdminCollectionJobPageResult(List.of(), 2, 20, 21);
 		AdminMealItemLabelingPageResult expectedLabeling = new AdminMealItemLabelingPageResult(List.of(), 2, 20, 21);
 		AdminExternalApiLogPageResult expectedExternal = new AdminExternalApiLogPageResult(List.of(), 2, 20, 21);
+		AtomicReference<List<UUID>> recoveryIds = new AtomicReference<>();
+		AdminRecollectionRequestRepository recoveries = proxy(AdminRecollectionRequestRepository.class,
+			"findRecoveries", recoveryIds, java.util.Map.of());
 		AdminCollectionFailureService service = new AdminCollectionFailureService(
 			proxy(CollectionJobRepository.class, "findAdminPage", collectionQuery, expectedCollection),
 			proxy(ExternalApiLogRepository.class, "findAdminPage", externalQuery, expectedExternal),
 			proxy(MealRepository.class, "findAdminMealItemLabelings", labelingQuery, expectedLabeling),
-			unavailable(AdminRecollectionRequestRepository.class), unavailable(MealCollectionDispatcher.class),
+			recoveries, unavailable(MealCollectionDispatcher.class),
 			unavailable(AdminAuditLogRepository.class), CLOCK);
 		UUID schoolId = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
-		assertSame(expectedCollection, service.findCollectionJobs(admin(), 2, 20, " SUCCEEDED ", schoolId.toString(),
+		assertEquals(expectedCollection, service.findCollectionJobs(admin(), 2, 20, " SUCCEEDED ", schoolId.toString(),
 			"2026-09-26", " LUNCH ", " school "));
 		assertSame(expectedLabeling, service.findMealItemLabelings(admin(), 2, 20, " UNKNOWN ", schoolId.toString(),
 			"2026-09-26", " BREAKFAST ", " menu "));
@@ -67,6 +70,7 @@ final class AdminOperationListFilterForwardingTest {
 
 		assertEquals(new AdminCollectionJobQuery(2, 20, CollectionJobStatus.SUCCEEDED, schoolId,
 			LocalDate.parse("2026-09-26"), MealType.LUNCH, "school"), collectionQuery.get());
+		assertEquals(List.of(), recoveryIds.get());
 		assertEquals(new AdminMealItemLabelingQuery(2, 20, MealItemLabelingStatus.UNKNOWN, schoolId,
 			LocalDate.parse("2026-09-26"), MealType.BREAKFAST, "menu"), labelingQuery.get());
 		assertEquals(new AdminExternalApiLogQuery(2, 20, "NEIS", "GET", "SUCCESS", "endpoint"), externalQuery.get());

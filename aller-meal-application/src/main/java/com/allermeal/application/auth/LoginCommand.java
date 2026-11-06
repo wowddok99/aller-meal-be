@@ -1,4 +1,4 @@
 package com.allermeal.application.auth;
 
-public record LoginCommand(String email, String password) {
+public record LoginCommand(String email, String password, Boolean rememberMe) {
 }

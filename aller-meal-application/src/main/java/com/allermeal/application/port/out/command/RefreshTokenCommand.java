@@ -1,6 +1,7 @@
 package com.allermeal.application.port.out.command;
 
 import com.allermeal.domain.user.UserId;
+import com.allermeal.application.port.out.result.RefreshTokenLoginSnapshotResult;
 import java.time.Duration;
 import java.time.Instant;
 
@@ -11,6 +12,9 @@ public record RefreshTokenCommand(
 	Instant issuedAt,
 	Instant expiresAt,
 	long sessionVersion,
-	Duration ttl
+	Duration ttl,
+	Boolean rememberMe,
+	Instant absoluteExpiresAt,
+	RefreshTokenLoginSnapshotResult loginSnapshot
 ) {
 }

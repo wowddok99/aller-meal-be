@@ -23,6 +23,7 @@ import com.allermeal.application.admin.AdminNotificationFailureService;
 import com.allermeal.application.admin.AdminNotificationRequestPageResult;
 import com.allermeal.application.admin.AdminOutboxEventPageResult;
 import com.allermeal.application.auth.AccessTokenClaims;
+import com.allermeal.application.auth.RefreshService;
 import com.allermeal.application.port.out.AccessTokenIssuer;
 import com.allermeal.application.port.out.UserRepository;
 import com.allermeal.domain.user.EmailSearchHash;
@@ -140,7 +141,7 @@ final class AdminOperationListHttpContractTest {
 			};
 			AdminCollectionFailureService collectionService = org.mockito.Mockito.mock(AdminCollectionFailureService.class);
 			AdminNotificationFailureService notificationService = org.mockito.Mockito.mock(AdminNotificationFailureService.class);
-			when(collectionService.findCollectionJobs(any(), any(Integer.class), any(Integer.class), any(), any(), any(), any(), any()))
+			when(collectionService.findCollectionJobs(any(), any(Integer.class), any(Integer.class), any(), any(), any(), any(), any(), any()))
 				.thenReturn(new AdminCollectionJobPageResult(List.of(), 2, 20, 21));
 			when(collectionService.findMealItemLabelings(any(), any(Integer.class), any(Integer.class), any(), any(), any(), any(), any()))
 				.thenReturn(new AdminMealItemLabelingPageResult(List.of(), 1, 20, 0));
@@ -156,7 +157,7 @@ final class AdminOperationListHttpContractTest {
 				.thenReturn(new AdminNotificationRequestPageResult(List.of(), 1, 20, 0));
 			when(notificationService.findFailedNotifications(any(), any(Integer.class), any(Integer.class)))
 				.thenReturn(new com.allermeal.application.admin.AdminFailedNotificationPageResult(List.of(), 1, 20, 0));
-			when(collectionService.findCollectionJobs(org.mockito.ArgumentMatchers.eq(member), any(Integer.class), any(Integer.class), any(), any(), any(), any(), any()))
+			when(collectionService.findCollectionJobs(org.mockito.ArgumentMatchers.eq(member), any(Integer.class), any(Integer.class), any(), any(), any(), any(), any(), any()))
 				.thenThrow(new AdminAuthorizationException());
 			when(collectionService.findMealItemLabelings(org.mockito.ArgumentMatchers.eq(member), any(Integer.class), any(Integer.class), any(), any(), any(), any(), any()))
 				.thenThrow(new AdminAuthorizationException());
@@ -169,7 +170,7 @@ final class AdminOperationListHttpContractTest {
 			when(notificationService.findNotificationRequests(org.mockito.ArgumentMatchers.eq(member), any(Integer.class), any(Integer.class), any(), any(), any(), any()))
 				.thenThrow(new AdminAuthorizationException());
 			when(collectionService.findCollectionJobs(org.mockito.ArgumentMatchers.eq(admin), any(Integer.class), any(Integer.class),
-				org.mockito.ArgumentMatchers.eq("NOT_A_STATUS"), any(), any(), any(), any()))
+				org.mockito.ArgumentMatchers.eq("NOT_A_STATUS"), any(), any(), any(), any(), any()))
 				.thenThrow(new AdminInvalidCollectionRequestException());
 			when(collectionService.findMealItemLabelings(org.mockito.ArgumentMatchers.eq(admin), any(Integer.class), any(Integer.class),
 				org.mockito.ArgumentMatchers.eq("NOT_A_STATUS"), any(), any(), any(), any()))
@@ -193,7 +194,7 @@ final class AdminOperationListHttpContractTest {
 				.setControllerAdvice(new ApiExceptionHandler())
 				.addFilters(new TraceIdFilter(),
 					new AuthenticationRequestProtectionFilter(org.mockito.Mockito.mock(StringRedisTemplate.class), 20, Duration.ofMinutes(1), "http://localhost:3000"),
-					new AuthenticationFilter(issuer, usersById))
+					new AuthenticationFilter(issuer, usersById, org.mockito.Mockito.mock(RefreshService.class)))
 				.build();
 			return new Fixture(mvc);
 		}
