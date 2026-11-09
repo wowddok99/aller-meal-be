@@ -29,7 +29,7 @@ aller-meal:
     email-verification-token-ttl: "${EMAIL_VERIFICATION_TOKEN_TTL:30m}"
     email-verification-base-url: "${EMAIL_VERIFICATION_BASE_URL:http://localhost:3000/auth/email-verification/confirm?token=}"
     password-reset-token-ttl: "${PASSWORD_RESET_TOKEN_TTL:30m}"
-    password-reset-base-url: "${PASSWORD_RESET_BASE_URL:http://localhost:8080/password-reset?token=}"
+    password-reset-base-url: "${PASSWORD_RESET_BASE_URL:http://localhost:3000/auth/password-reset/confirm?token=}"
     email-from: "${AUTH_EMAIL_FROM:no-reply@allermeal.local}"
     password-hash-iterations: "${PASSWORD_HASH_ITERATIONS:210000}"
     access-token-signing-key: "${AUTH_ACCESS_TOKEN_SIGNING_KEY}"
