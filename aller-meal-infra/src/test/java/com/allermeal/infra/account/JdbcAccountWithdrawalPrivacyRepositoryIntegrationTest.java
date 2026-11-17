@@ -3,6 +3,14 @@ package com.allermeal.infra.account;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.allermeal.application.port.out.AccountWithdrawalPrivacyRepository;
+import com.allermeal.infra.user.JpaUserRepository;
+import com.allermeal.domain.user.*;
+import org.springframework.context.annotation.Bean;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.orm.jpa.JpaTransactionManager;
+import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
+import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
+import jakarta.persistence.EntityManagerFactory;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -51,7 +59,19 @@ final class JdbcAccountWithdrawalPrivacyRepositoryIntegrationTest {
 				"withdrawal_it", "isolated-test-password");
 			jdbc = new JdbcTemplate(dataSource);
 			awaitPostgres();
+			Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").target("30").load().migrate();
+			UUID existing = UUID.randomUUID();
+			jdbc.update("""
+				INSERT INTO users (user_id, encrypted_email, email_search_hash, password_hash, role, status,
+				 email_verification_status, created_at, updated_at)
+				VALUES (?, ?, ?, 'existing-password', 'MEMBER', 'ACTIVE', 'VERIFIED', ?, ?)
+				""", existing, ORIGINAL_EMAIL, "a".repeat(64), timestamp(CREATED_AT), timestamp(CREATED_AT));
+			var before = jdbc.queryForMap("SELECT * FROM users WHERE user_id = ?", existing);
 			Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
+			var after = jdbc.queryForMap("SELECT * FROM users WHERE user_id = ?", existing);
+			assertNull(after.remove("display_name"));
+			assertNull(after.remove("usage_type"));
+			assertEquals(before, after);
 			context = new AnnotationConfigApplicationContext();
 			context.register(TransactionConfiguration.class);
 			context.registerBean(DataSource.class, () -> dataSource);
@@ -75,6 +95,44 @@ final class JdbcAccountWithdrawalPrivacyRepositoryIntegrationTest {
 			INSERT INTO schools (school_id, neis_school_code, education_office_code, name, address, region, created_at, updated_at)
 			VALUES (?, 'TEST', 'TEST', '테스트 학교', '테스트 주소', '테스트 지역', ?, ?)
 			""", schoolId, timestamp(CREATED_AT), timestamp(CREATED_AT));
+	}
+
+	@Test
+	void jpaPersistsAndReloadsProfileAcrossStateChanges() {
+		try (var jpa = new AnnotationConfigApplicationContext()) {
+			jpa.registerBean(DataSource.class, () -> jdbc.getDataSource());
+			jpa.register(JpaTestConfiguration.class);
+			jpa.registerBean(JpaUserRepository.class);
+			jpa.refresh();
+			var users = jpa.getBean(JpaUserRepository.class);
+			User original = User.create(new UserId(UUID.randomUUID()), new EncryptedEmail(ORIGINAL_EMAIL),
+				new EmailSearchHash("b".repeat(64)), new PasswordHash("password-hash"), CREATED_AT)
+				.withProfile("표시 이름😀", "STUDENT");
+			users.save(original);
+			User loaded = users.findById(original.id()).orElseThrow();
+			assertEquals("표시 이름😀", loaded.displayName());
+			assertEquals("STUDENT", loaded.usageType());
+			users.save(loaded.verifyEmail(CREATED_AT.plusSeconds(1)));
+			User verified = users.findById(original.id()).orElseThrow();
+			assertEquals("표시 이름😀", verified.displayName());
+			assertEquals("STUDENT", verified.usageType());
+		}
+	}
+
+	@Configuration
+	@EnableTransactionManagement
+	@EnableJpaRepositories(basePackages = "com.allermeal.infra.user")
+	static class JpaTestConfiguration {
+		@Bean LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
+			var factory = new LocalContainerEntityManagerFactoryBean();
+			factory.setDataSource(dataSource);
+			factory.setPackagesToScan("com.allermeal.infra.user");
+			factory.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
+			return factory;
+		}
+		@Bean JpaTransactionManager transactionManager(EntityManagerFactory factory) {
+			return new JpaTransactionManager(factory);
+		}
 	}
 
 	@Test
@@ -143,8 +201,8 @@ final class JdbcAccountWithdrawalPrivacyRepositoryIntegrationTest {
 		jdbc.update("""
 			INSERT INTO users (user_id, encrypted_email, email_search_hash, password_hash, role, status,
 			 email_verification_status, created_at, updated_at, withdrawal_requested_at, withdrawal_due_at,
-			 withdrawal_masked_notification_count)
-			VALUES (?, ?, ?, 'original-password-hash', 'MEMBER', ?, 'VERIFIED', ?, ?, ?, ?, 3)
+			 withdrawal_masked_notification_count, display_name, usage_type)
+			VALUES (?, ?, ?, 'original-password-hash', 'MEMBER', ?, 'VERIFIED', ?, ?, ?, ?, 3, '표시 이름', 'PARENT')
 			""", user, ORIGINAL_EMAIL, hash, status, timestamp(CREATED_AT), timestamp(CREATED_AT),
 			timestamp(CREATED_AT), timestamp(dueAt));
 		jdbc.update("""
@@ -181,6 +239,8 @@ final class JdbcAccountWithdrawalPrivacyRepositoryIntegrationTest {
 		var account = jdbc.queryForMap("SELECT * FROM users WHERE user_id = ?", user);
 		assertEquals("DISABLED", account.get("status"));
 		assertNull(account.get("withdrawal_masked_notification_count"));
+		assertNull(account.get("display_name"));
+		assertNull(account.get("usage_type"));
 		assertEquals(timestamp(DELETED_AT), account.get("personal_data_deleted_at"));
 		assertEquals(timestamp(DELETED_AT), account.get("updated_at"));
 		assertEquals(1L, account.get("version"));
@@ -204,6 +264,8 @@ final class JdbcAccountWithdrawalPrivacyRepositoryIntegrationTest {
 	}
 
 	private void assertIntact(UUID user) {
+		assertEquals("표시 이름", jdbc.queryForObject("SELECT display_name FROM users WHERE user_id = ?", String.class, user));
+		assertEquals("PARENT", jdbc.queryForObject("SELECT usage_type FROM users WHERE user_id = ?", String.class, user));
 		assertEquals(ORIGINAL_EMAIL, jdbc.queryForObject("SELECT encrypted_email FROM users WHERE user_id = ?", String.class, user));
 		assertEquals("테스트 자녀", jdbc.queryForObject("SELECT name FROM child_profiles WHERE user_id = ?", String.class, user));
 		assertEquals(1, count("child_profile_allergens", user));

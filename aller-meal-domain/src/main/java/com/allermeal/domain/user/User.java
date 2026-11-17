@@ -6,6 +6,8 @@ import java.util.Objects;
 
 public final class User {
 
+	private final String displayName;
+	private final String usageType;
 	private final UserId id;
 	private final EncryptedEmail encryptedEmail;
 	private final EmailSearchHash emailSearchHash;
@@ -69,6 +71,8 @@ public final class User {
 		EntityTimestamps timestamps,
 		Long version
 	) {
+		this.displayName = null;
+		this.usageType = null;
 		this.id = Objects.requireNonNull(id, "사용자 ID는 null일 수 없습니다.");
 		this.encryptedEmail = Objects.requireNonNull(encryptedEmail, "암호화 이메일은 null일 수 없습니다.");
 		this.emailSearchHash = Objects.requireNonNull(emailSearchHash, "이메일 검색 해시는 null일 수 없습니다.");
@@ -288,7 +292,7 @@ public final class User {
 		if (changedAt.isBefore(timestamps.updatedAt())) {
 			throw new IllegalArgumentException("변경 시각은 기존 updatedAt보다 이전일 수 없습니다.");
 		}
-		return new User(
+		return preserveProfile(new User(
 			id,
 			encryptedEmail,
 			emailSearchHash,
@@ -301,7 +305,7 @@ public final class User {
 			personalDataDeletedAt,
 			sessionVersion,
 			new EntityTimestamps(timestamps.createdAt(), changedAt),
-			version);
+			version));
 	}
 
 	public User changePassword(PasswordHash nextPasswordHash, Instant changedAt) {
@@ -312,7 +316,7 @@ public final class User {
 		if (changedAt == null || changedAt.isBefore(timestamps.updatedAt())) {
 			throw new IllegalArgumentException("변경 시각은 기존 updatedAt보다 이전일 수 없습니다.");
 		}
-		return new User(
+		return preserveProfile(new User(
 			id,
 			encryptedEmail,
 			emailSearchHash,
@@ -325,7 +329,7 @@ public final class User {
 			personalDataDeletedAt,
 			sessionVersion,
 			new EntityTimestamps(timestamps.createdAt(), changedAt),
-			version);
+			version));
 	}
 
 	public User requestWithdrawal(Instant changedAt, Instant withdrawalDueAt) {
@@ -491,7 +495,7 @@ public final class User {
 		if (changedAt.isBefore(timestamps.updatedAt())) {
 			throw new IllegalArgumentException("변경 시각은 기존 updatedAt보다 이전일 수 없습니다.");
 		}
-		return new User(
+		return preserveProfile(new User(
 			id,
 			encryptedEmail,
 			emailSearchHash,
@@ -505,7 +509,7 @@ public final class User {
 			nextPersonalDataDeletedAt,
 			nextSessionVersion,
 			new EntityTimestamps(timestamps.createdAt(), changedAt),
-			version);
+			version));
 	}
 
 	private void requireStatus(UserStatus requiredStatus, String message) {
@@ -565,6 +569,36 @@ public final class User {
 			throw new IllegalArgumentException("개인정보 삭제 시각은 탈퇴 유예 종료 시각보다 이전일 수 없습니다.");
 		}
 	}
+
+	private User(User source, String displayName, String usageType) {
+		this.id = source.id;
+		this.encryptedEmail = source.encryptedEmail;
+		this.emailSearchHash = source.emailSearchHash;
+		this.passwordHash = source.passwordHash;
+		this.role = source.role;
+		this.status = source.status;
+		this.emailVerificationStatus = source.emailVerificationStatus;
+		this.withdrawalRequestedAt = source.withdrawalRequestedAt;
+		this.withdrawalDueAt = source.withdrawalDueAt;
+		this.withdrawalMaskedNotificationCount = source.withdrawalMaskedNotificationCount;
+		this.personalDataDeletedAt = source.personalDataDeletedAt;
+		this.sessionVersion = source.sessionVersion;
+		this.timestamps = source.timestamps;
+		this.version = source.version;
+		this.displayName = displayName;
+		this.usageType = usageType;
+	}
+
+	public User withProfile(String displayName, String usageType) {
+		return new User(this, displayName, usageType);
+	}
+
+	private User preserveProfile(User copy) {
+		return new User(copy, displayName, usageType);
+	}
+
+	public String displayName() { return displayName; }
+	public String usageType() { return usageType; }
 
 	public UserId id() {
 		return id;
