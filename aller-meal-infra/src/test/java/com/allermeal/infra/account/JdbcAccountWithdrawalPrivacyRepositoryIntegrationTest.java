@@ -3,6 +3,14 @@ package com.allermeal.infra.account;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.allermeal.application.port.out.AccountWithdrawalPrivacyRepository;
+import com.allermeal.infra.user.JpaUserRepository;
+import com.allermeal.domain.user.*;
+import org.springframework.context.annotation.Bean;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.orm.jpa.JpaTransactionManager;
+import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
+import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
+import jakarta.persistence.EntityManagerFactory;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -51,7 +59,19 @@ final class JdbcAccountWithdrawalPrivacyRepositoryIntegrationTest {
 				"withdrawal_it", "isolated-test-password");
 			jdbc = new JdbcTemplate(dataSource);
 			awaitPostgres();
+			Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").target("30").load().migrate();
+			UUID existing = UUID.randomUUID();
+			jdbc.update("""
+				INSERT INTO users (user_id, encrypted_email, email_search_hash, password_hash, role, status,
+				 email_verification_status, created_at, updated_at)
+				VALUES (?, ?, ?, 'existing-password', 'MEMBER', 'ACTIVE', 'VERIFIED', ?, ?)
+				""", existing, ORIGINAL_EMAIL, "a".repeat(64), timestamp(CREATED_AT), timestamp(CREATED_AT));
+			var before = jdbc.queryForMap("SELECT * FROM users WHERE user_id = ?", existing);
 			Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
+			var after = jdbc.queryForMap("SELECT * FROM users WHERE user_id = ?", existing);
+			assertNull(after.remove("display_name"));
+			assertNull(after.remove("usage_type"));
+			assertEquals(before, after);
 			context = new AnnotationConfigApplicationContext();
 			context.register(TransactionConfiguration.class);
 			context.registerBean(DataSource.class, () -> dataSource);
@@ -75,6 +95,44 @@ final class JdbcAccountWithdrawalPrivacyRepositoryIntegrationTest {
 			INSERT INTO schools (school_id, neis_school_code, education_office_code, name, address, region, created_at, updated_at)
 			VALUES (?, 'TEST', 'TEST', '테스트 학교', '테스트 주소', '테스트 지역', ?, ?)
 			""", schoolId, timestamp(CREATED_AT), timestamp(CREATED_AT));
+	}
+
+	@Test
+	void jpaPersistsAndReloadsProfileAcrossStateChanges() {
+		try (var jpa = new AnnotationConfigApplicationContext()) {
+			jpa.registerBean(DataSource.class, () -> jdbc.getDataSource());
+			jpa.register(JpaTestConfiguration.class);
+			jpa.registerBean(JpaUserRepository.class);
+			jpa.refresh();
+			var users = jpa.getBean(JpaUserRepository.class);
+			User original = User.create(new UserId(UUID.randomUUID()), new EncryptedEmail(ORIGINAL_EMAIL),
+				new EmailSearchHash("b".repeat(64)), new PasswordHash("password-hash"), CREATED_AT)
+				.withProfile("표시 이름😀", "STUDENT");
+			users.save(original);
+			User loaded = users.findById(original.id()).orElseThrow();
+			assertEquals("표시 이름😀", loaded.displayName());
+			assertEquals("STUDENT", loaded.usageType());
+			users.save(loaded.verifyEmail(CREATED_AT.plusSeconds(1)));
+			User verified = users.findById(original.id()).orElseThrow();
+			assertEquals("표시 이름😀", verified.displayName());
+			assertEquals("STUDENT", verified.usageType());
+		}
+	}
+
+	@Configuration
+	@EnableTransactionManagement
+	@EnableJpaRepositories(basePackages = "com.allermeal.infra.user")
+	static class JpaTestConfiguration {
+		@Bean LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
+			var factory = new LocalContainerEntityManagerFactoryBean();
+			factory.setDataSource(dataSource);
+			factory.setPackagesToScan("com.allermeal.infra.user");
+			factory.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
+			return factory;
+		}
+		@Bean JpaTransactionManager transactionManager(EntityManagerFactory factory) {
+			return new JpaTransactionManager(factory);
+		}
 	}
 
 	@Test
@@ -135,6 +193,183 @@ final class JdbcAccountWithdrawalPrivacyRepositoryIntegrationTest {
 		assertDeleted(user);
 	}
 
+	@Test
+	void profileLocksLatestUserStateAgainstConcurrentWithdrawal() throws Exception {
+		UUID user = UUID.randomUUID();
+		jdbc.update("""
+			INSERT INTO users (user_id, encrypted_email, email_search_hash, password_hash, role, status,
+			 email_verification_status, created_at, updated_at, display_name)
+			VALUES (?, ?, ?, 'password', 'MEMBER', 'ACTIVE', 'VERIFIED', ?, ?, '이름')
+			""", user, ORIGINAL_EMAIL, "e".repeat(64), timestamp(CREATED_AT), timestamp(CREATED_AT));
+		var entered = new java.util.concurrent.CountDownLatch(1);
+		var release = new java.util.concurrent.CountDownLatch(1);
+		var service = new com.allermeal.application.account.AccountProfileService(
+			new JdbcAccountProfileRepository(JdbcClient.create(jdbc.getDataSource())), encrypted -> {
+				entered.countDown();
+				try { if (!release.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("대기 시간 초과"); }
+				catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IllegalStateException(e); }
+				return "owner@example.test";
+			}, java.time.Clock.fixed(DUE_AT, java.time.ZoneOffset.UTC));
+		var tx = new org.springframework.transaction.support.TransactionTemplate(new DataSourceTransactionManager(jdbc.getDataSource()));
+		var executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+		try {
+			var read = executor.submit(() -> tx.execute(status -> service.findProfile(new UserId(user), 0)));
+			assertTrue(entered.await(10, TimeUnit.SECONDS));
+			var updateStarted = new java.util.concurrent.CountDownLatch(1);
+			var update = executor.submit(() -> { updateStarted.countDown(); return jdbc.update(
+				"UPDATE users SET status = 'WITHDRAWAL_PENDING', withdrawal_requested_at = ?, withdrawal_due_at = ?, withdrawal_masked_notification_count = 0 WHERE user_id = ?", timestamp(CREATED_AT), timestamp(DUE_AT), user); });
+			assertTrue(updateStarted.await(10, TimeUnit.SECONDS));
+			assertThrows(java.util.concurrent.TimeoutException.class, () -> update.get(300, TimeUnit.MILLISECONDS));
+			release.countDown();
+			assertEquals("owner@example.test", read.get(10, TimeUnit.SECONDS).email());
+			assertEquals(1, update.get(10, TimeUnit.SECONDS));
+			assertThrows(com.allermeal.application.auth.UnauthorizedAccessException.class,
+				() -> tx.execute(status -> service.findProfile(new UserId(user), 0)));
+		} finally {
+			release.countDown();
+			executor.shutdownNow();
+			assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+		}
+	}
+
+	@Test
+	void profileReadsCommittedRoleAndPendingStateAfterWaitingForRowLock() throws Exception {
+		UUID user = fixture("WITHDRAWAL_PENDING", DUE_AT);
+		var decryptions = new java.util.concurrent.atomic.AtomicInteger();
+		var service = new com.allermeal.application.account.AccountProfileService(
+			new JdbcAccountProfileRepository(JdbcClient.create(jdbc.getDataSource())), encrypted -> {
+				decryptions.incrementAndGet();
+				return "owner@example.test";
+			}, java.time.Clock.fixed(CREATED_AT, java.time.ZoneOffset.UTC));
+		var tx = new org.springframework.transaction.support.TransactionTemplate(new DataSourceTransactionManager(jdbc.getDataSource()));
+		var executor = java.util.concurrent.Executors.newSingleThreadExecutor();
+		try {
+			var started = new java.util.concurrent.CountDownLatch(1);
+			var pending = tx.execute(status -> {
+				jdbc.update("UPDATE users SET role = 'ADMIN' WHERE user_id = ?", user);
+				var read = executor.submit(() -> {
+					started.countDown();
+					return tx.execute(inner -> service.findProfile(new UserId(user), 0));
+				});
+				try {
+					assertTrue(started.await(10, TimeUnit.SECONDS));
+					assertThrows(java.util.concurrent.TimeoutException.class, () -> read.get(300, TimeUnit.MILLISECONDS));
+				} catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IllegalStateException(e); }
+				return read;
+			});
+			var profile = pending.get(10, TimeUnit.SECONDS);
+			assertEquals(UserRole.ADMIN, profile.role());
+			assertEquals(UserStatus.WITHDRAWAL_PENDING, profile.userStatus());
+			assertEquals(1, decryptions.get());
+		} finally {
+			executor.shutdownNow();
+			assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+		}
+	}
+
+	@Test
+	void profileRechecksChangedPendingDeadlineAfterWaitingForRowLock() throws Exception {
+		UUID user = fixture("WITHDRAWAL_PENDING", DUE_AT);
+		var decryptions = new java.util.concurrent.atomic.AtomicInteger();
+		var service = new com.allermeal.application.account.AccountProfileService(
+			new JdbcAccountProfileRepository(JdbcClient.create(jdbc.getDataSource())), encrypted -> {
+				decryptions.incrementAndGet();
+				return "owner@example.test";
+			}, java.time.Clock.fixed(CREATED_AT.plusSeconds(1), java.time.ZoneOffset.UTC));
+		var tx = new org.springframework.transaction.support.TransactionTemplate(new DataSourceTransactionManager(jdbc.getDataSource()));
+		var executor = java.util.concurrent.Executors.newSingleThreadExecutor();
+		try {
+			var started = new java.util.concurrent.CountDownLatch(1);
+			var pending = tx.execute(status -> {
+				jdbc.update("UPDATE users SET withdrawal_due_at = ? WHERE user_id = ?", timestamp(CREATED_AT.plusSeconds(1)), user);
+				var read = executor.submit(() -> {
+					started.countDown();
+					return tx.execute(inner -> service.findProfile(new UserId(user), 0));
+				});
+				try {
+					assertTrue(started.await(10, TimeUnit.SECONDS));
+					assertThrows(java.util.concurrent.TimeoutException.class, () -> read.get(300, TimeUnit.MILLISECONDS));
+				} catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IllegalStateException(e); }
+				return read;
+			});
+			var failure = assertThrows(java.util.concurrent.ExecutionException.class, () -> pending.get(10, TimeUnit.SECONDS));
+			assertInstanceOf(com.allermeal.application.auth.UnauthorizedAccessException.class, failure.getCause());
+			assertEquals(0, decryptions.get());
+		} finally {
+			executor.shutdownNow();
+			assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+		}
+	}
+
+	@Test
+	void profileWaitsForPrivacyDeletionAndDoesNotDecryptMaskedData() throws Exception {
+		UUID user = fixture("WITHDRAWAL_PENDING", DUE_AT);
+		var decryptions = new java.util.concurrent.atomic.AtomicInteger();
+		var service = new com.allermeal.application.account.AccountProfileService(
+			new JdbcAccountProfileRepository(JdbcClient.create(jdbc.getDataSource())), encrypted -> {
+				decryptions.incrementAndGet();
+				return "owner@example.test";
+			}, java.time.Clock.fixed(DUE_AT, java.time.ZoneOffset.UTC));
+		var tx = new org.springframework.transaction.support.TransactionTemplate(new DataSourceTransactionManager(jdbc.getDataSource()));
+		var executor = java.util.concurrent.Executors.newSingleThreadExecutor();
+		try {
+			var started = new java.util.concurrent.CountDownLatch(1);
+			var pending = tx.execute(status -> {
+				jdbc.queryForObject("SELECT user_id FROM users WHERE user_id = ? FOR UPDATE", UUID.class, user);
+				var read = executor.submit(() -> {
+					started.countDown();
+					return tx.execute(inner -> service.findProfile(new UserId(user), 0));
+				});
+				try {
+					assertTrue(started.await(10, TimeUnit.SECONDS));
+					assertThrows(java.util.concurrent.TimeoutException.class, () -> read.get(300, TimeUnit.MILLISECONDS));
+				} catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IllegalStateException(e); }
+				assertEquals(1, repository.deleteExpiredPersonalData(DUE_AT, DELETED_AT));
+				return read;
+			});
+			var failure = assertThrows(java.util.concurrent.ExecutionException.class, () -> pending.get(10, TimeUnit.SECONDS));
+			assertInstanceOf(com.allermeal.application.auth.UnauthorizedAccessException.class, failure.getCause());
+			assertEquals(0, decryptions.get());
+			assertDeleted(user);
+		} finally {
+			executor.shutdownNow();
+			assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+		}
+	}
+
+	@Test
+	void profileReadsEncryptedSignupEmailFromDatabase() {
+		UUID user = UUID.randomUUID();
+		var encryptor = new com.allermeal.infra.auth.AesGcmEmailEncryptor(new byte[32], "test", new java.security.SecureRandom());
+		String encryptedEmail = encryptor.encrypt("owner@example.test");
+		jdbc.update("""
+			INSERT INTO users (user_id, encrypted_email, email_search_hash, password_hash, role, status,
+			 email_verification_status, created_at, updated_at, display_name)
+			VALUES (?, ?, ?, 'password', 'MEMBER', 'ACTIVE', 'VERIFIED', ?, ?, '이름')
+			""", user, encryptedEmail, "f".repeat(64), timestamp(CREATED_AT), timestamp(CREATED_AT));
+		var service = new com.allermeal.application.account.AccountProfileService(
+			new JdbcAccountProfileRepository(JdbcClient.create(jdbc.getDataSource())), encryptor, java.time.Clock.fixed(DUE_AT, java.time.ZoneOffset.UTC));
+		var tx = new org.springframework.transaction.support.TransactionTemplate(new DataSourceTransactionManager(jdbc.getDataSource()));
+		var profile = tx.execute(status -> service.findProfile(new UserId(user), 0));
+		assertEquals("이름", profile.displayName());
+		assertEquals("owner@example.test", profile.email());
+	}
+
+	@Test
+	void profileDecryptFailureDoesNotReturnProfile() {
+		UUID user = UUID.randomUUID();
+		jdbc.update("""
+			INSERT INTO users (user_id, encrypted_email, email_search_hash, password_hash, role, status,
+			 email_verification_status, created_at, updated_at, display_name)
+			VALUES (?, ?, ?, 'password', 'MEMBER', 'ACTIVE', 'VERIFIED', ?, ?, '이름')
+			""", user, ORIGINAL_EMAIL, "f".repeat(64), timestamp(CREATED_AT), timestamp(CREATED_AT));
+		var encryptor = new com.allermeal.infra.auth.AesGcmEmailEncryptor(new byte[32], "test", new java.security.SecureRandom());
+		var service = new com.allermeal.application.account.AccountProfileService(
+			new JdbcAccountProfileRepository(JdbcClient.create(jdbc.getDataSource())), encryptor, java.time.Clock.fixed(DUE_AT, java.time.ZoneOffset.UTC));
+		var tx = new org.springframework.transaction.support.TransactionTemplate(new DataSourceTransactionManager(jdbc.getDataSource()));
+		assertThrows(IllegalStateException.class, () -> tx.execute(status -> service.findProfile(new UserId(user), 0)));
+	}
+
 	private UUID fixture(String status, Instant dueAt) {
 		UUID user = UUID.randomUUID();
 		UUID child = UUID.randomUUID();
@@ -143,8 +378,8 @@ final class JdbcAccountWithdrawalPrivacyRepositoryIntegrationTest {
 		jdbc.update("""
 			INSERT INTO users (user_id, encrypted_email, email_search_hash, password_hash, role, status,
 			 email_verification_status, created_at, updated_at, withdrawal_requested_at, withdrawal_due_at,
-			 withdrawal_masked_notification_count)
-			VALUES (?, ?, ?, 'original-password-hash', 'MEMBER', ?, 'VERIFIED', ?, ?, ?, ?, 3)
+			 withdrawal_masked_notification_count, display_name, usage_type)
+			VALUES (?, ?, ?, 'original-password-hash', 'MEMBER', ?, 'VERIFIED', ?, ?, ?, ?, 3, '표시 이름', 'PARENT')
 			""", user, ORIGINAL_EMAIL, hash, status, timestamp(CREATED_AT), timestamp(CREATED_AT),
 			timestamp(CREATED_AT), timestamp(dueAt));
 		jdbc.update("""
@@ -181,6 +416,8 @@ final class JdbcAccountWithdrawalPrivacyRepositoryIntegrationTest {
 		var account = jdbc.queryForMap("SELECT * FROM users WHERE user_id = ?", user);
 		assertEquals("DISABLED", account.get("status"));
 		assertNull(account.get("withdrawal_masked_notification_count"));
+		assertNull(account.get("display_name"));
+		assertNull(account.get("usage_type"));
 		assertEquals(timestamp(DELETED_AT), account.get("personal_data_deleted_at"));
 		assertEquals(timestamp(DELETED_AT), account.get("updated_at"));
 		assertEquals(1L, account.get("version"));
@@ -204,6 +441,8 @@ final class JdbcAccountWithdrawalPrivacyRepositoryIntegrationTest {
 	}
 
 	private void assertIntact(UUID user) {
+		assertEquals("표시 이름", jdbc.queryForObject("SELECT display_name FROM users WHERE user_id = ?", String.class, user));
+		assertEquals("PARENT", jdbc.queryForObject("SELECT usage_type FROM users WHERE user_id = ?", String.class, user));
 		assertEquals(ORIGINAL_EMAIL, jdbc.queryForObject("SELECT encrypted_email FROM users WHERE user_id = ?", String.class, user));
 		assertEquals("테스트 자녀", jdbc.queryForObject("SELECT name FROM child_profiles WHERE user_id = ?", String.class, user));
 		assertEquals(1, count("child_profile_allergens", user));

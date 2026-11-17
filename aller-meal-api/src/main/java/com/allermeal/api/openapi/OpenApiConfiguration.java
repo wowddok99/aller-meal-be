@@ -79,6 +79,7 @@ public class OpenApiConfiguration {
 		Map.entry("PersonalizedMealController#findDaily", "getPersonalizedDailyMeal"),
 		Map.entry("PersonalizedMealController#findWeekly", "getPersonalizedWeeklyMeals"),
 		Map.entry("NotificationHistoryController#findByChild", "getChildNotificationHistory"),
+		Map.entry("AccountProfileController#findProfile", "getAccountProfile"),
 		Map.entry("AccountWithdrawalController#findWithdrawal", "getAccountWithdrawal"),
 		Map.entry("AccountWithdrawalController#requestWithdrawal", "requestAccountWithdrawal"),
 		Map.entry("AccountWithdrawalController#cancelWithdrawal", "cancelAccountWithdrawal"),
@@ -120,10 +121,27 @@ public class OpenApiConfiguration {
 	}
 
 	@Bean
-	GroupedOpenApi publicApi(OperationCustomizer allerMealOperationCustomizer) {
+	GroupedOpenApi publicApi(OperationCustomizer allerMealOperationCustomizer, OpenApiCustomizer signupNullableEnumCustomizer) {
 		return GroupedOpenApi.builder().group("public")
 			.pathsToMatch("/api/v1/allergens", "/api/v1/public/**", "/api/v1/auth/**")
-			.addOperationCustomizer(allerMealOperationCustomizer).build();
+			.addOperationCustomizer(allerMealOperationCustomizer)
+			.addOpenApiCustomizer(signupNullableEnumCustomizer).build();
+	}
+
+	@Bean
+	@SuppressWarnings("unchecked")
+	OpenApiCustomizer signupNullableEnumCustomizer() {
+		return openApi -> {
+			Schema<?> signup = openApi.getComponents().getSchemas().get("SignupRequest");
+			if (signup == null || signup.getProperties() == null) return;
+			Schema<Object> usageType = (Schema<Object>) signup.getProperties().get("usageType");
+			if (usageType != null && usageType.getEnum() != null && !usageType.getEnum().contains(null)) {
+				var values = List.copyOf(usageType.getEnum());
+				usageType.setEnum(null);
+				values.forEach(usageType::addEnumItemObject);
+				usageType.addEnumItemObject(null);
+			}
+		};
 	}
 
 	@Bean

@@ -17,6 +17,17 @@ public record AdminNotificationRequestItemResponse(
 		return new AdminNotificationRequestItemResponse(result.notificationId().value(), result.notificationTargetId(),
 			result.childProfileId().value(), result.ownerId().value(), result.notificationDate(), result.channel(), result.reason(),
 			result.status(), result.attemptCount(), result.maxAttempts(), result.nextAttemptAt(), result.sentAt(),
-			result.failureCode(), result.failureMessage(), result.createdAt(), result.updatedAt());
+			result.failureCode(), safeFailureMessage(result.failureCode()), result.createdAt(), result.updatedAt());
+	}
+
+	private static String safeFailureMessage(String code) {
+		if (code == null) return null;
+		return switch (code) {
+			case "SMTP_SEND_FAILED" -> "알림 메일 발송에 실패했습니다.";
+			case "NOTIFICATION_PREPARATION_FAILED" -> "알림 내용 준비에 실패했습니다.";
+			case "SUPERSEDED_BY_CORRECTION" -> "정정 알림으로 대체되었습니다.";
+			case "PERSONAL_DATA_MASKED", "OWNER_ACCESS_RESTRICTED", "NOTIFICATION_CONTEXT_CHANGED" -> null;
+			default -> "알림 처리에 실패했습니다.";
+		};
 	}
 }

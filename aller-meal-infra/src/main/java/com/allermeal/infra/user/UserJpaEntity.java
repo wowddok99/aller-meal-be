@@ -28,6 +28,12 @@ class UserJpaEntity implements Persistable<UUID> {
 	@Column(name = "email_search_hash", nullable = false, unique = true, length = 64)
 	private String emailSearchHash;
 
+	@Column(name = "display_name", length = 50)
+	private String displayName;
+
+	@Column(name = "usage_type", length = 30)
+	private String usageType;
+
 	@Column(name = "password_hash", nullable = false)
 	private String passwordHash;
 
@@ -76,6 +82,8 @@ class UserJpaEntity implements Persistable<UUID> {
 		String encryptedEmail,
 		String emailSearchHash,
 		String passwordHash,
+		String displayName,
+		String usageType,
 		UserRole role,
 		UserStatus status,
 		EmailVerificationStatus emailVerificationStatus,
@@ -92,6 +100,8 @@ class UserJpaEntity implements Persistable<UUID> {
 		this.encryptedEmail = encryptedEmail;
 		this.emailSearchHash = emailSearchHash;
 		this.passwordHash = passwordHash;
+		this.displayName = displayName;
+		this.usageType = usageType;
 		this.role = role;
 		this.status = status;
 		this.emailVerificationStatus = emailVerificationStatus;
@@ -130,6 +140,10 @@ class UserJpaEntity implements Persistable<UUID> {
 	String passwordHash() {
 		return passwordHash;
 	}
+
+	String displayName() { return displayName; }
+
+	String usageType() { return usageType; }
 
 	UserRole role() {
 		return role;

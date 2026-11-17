@@ -16,6 +16,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.Optional;
 import org.springframework.core.annotation.Order;
@@ -35,11 +36,13 @@ public final class AuthenticationFilter extends OncePerRequestFilter {
 	private final AccessTokenIssuer accessTokenIssuer;
 	private final UserRepository userRepository;
 	private final RefreshService refreshService;
+	private final Clock clock;
 
-	public AuthenticationFilter(AccessTokenIssuer accessTokenIssuer, UserRepository userRepository, RefreshService refreshService) {
+	public AuthenticationFilter(AccessTokenIssuer accessTokenIssuer, UserRepository userRepository, RefreshService refreshService, Clock clock) {
 		this.accessTokenIssuer = accessTokenIssuer;
 		this.userRepository = userRepository;
 		this.refreshService = refreshService;
+		this.clock = clock;
 	}
 
 	@Override
@@ -99,7 +102,17 @@ public final class AuthenticationFilter extends OncePerRequestFilter {
 				"계정 이용이 제한되었습니다. 문의가 필요하면 고객 지원에 연락해 주세요.");
 			return;
 		}
-		if (claims.sessionVersion() != user.sessionVersion() || !isAllowedStatus(request, user.status())) {
+		if (claims.sessionVersion() != user.sessionVersion()) {
+			writeError(response, request, HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+			return;
+		}
+		if (!isAllowedStatus(request, user)) {
+			if (user.status() == UserStatus.WITHDRAWAL_PENDING
+				&& user.withdrawalDueAt() != null && clock.instant().isBefore(user.withdrawalDueAt())) {
+				writeError(response, request, HttpStatus.FORBIDDEN, "ACCOUNT_WITHDRAWAL_PENDING",
+					"탈퇴 대기 중에는 탈퇴 조회와 취소만 이용하실 수 있습니다.");
+				return;
+			}
 			writeError(response, request, HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
 			return;
 		}
@@ -128,11 +141,15 @@ public final class AuthenticationFilter extends OncePerRequestFilter {
 			|| path.equals("/api/v1/auth/password-resets/confirm");
 	}
 
-	private boolean isAllowedStatus(HttpServletRequest request, UserStatus status) {
-		if (status == UserStatus.ACTIVE) {
+	private boolean isAllowedStatus(HttpServletRequest request, User user) {
+		if (user.status() == UserStatus.ACTIVE) {
 			return true;
 		}
-		return status == UserStatus.WITHDRAWAL_PENDING
+		if (user.status() == UserStatus.WITHDRAWAL_PENDING
+			&& requestPath(request).equals("/api/v1/account/profile") && request.getMethod().equals("GET")) {
+			return user.withdrawalDueAt() != null && clock.instant().isBefore(user.withdrawalDueAt());
+		}
+		return user.status() == UserStatus.WITHDRAWAL_PENDING
 			&& requestPath(request).equals("/api/v1/account/withdrawal")
 			&& (request.getMethod().equals("GET")
 				|| request.getMethod().equals("POST")

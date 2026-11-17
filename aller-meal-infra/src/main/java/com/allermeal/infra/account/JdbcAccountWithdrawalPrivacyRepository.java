@@ -124,6 +124,8 @@ public class JdbcAccountWithdrawalPrivacyRepository implements AccountWithdrawal
 				SET encrypted_email = :maskedEmail,
 				    email_search_hash = replace(user_id::text, '-', '') || replace(user_id::text, '-', ''),
 				    password_hash = :maskedPasswordHash,
+				    display_name = NULL,
+				    usage_type = NULL,
 				    status = 'DISABLED',
 				    withdrawal_masked_notification_count = NULL,
 				    personal_data_deleted_at = :deletedAt,

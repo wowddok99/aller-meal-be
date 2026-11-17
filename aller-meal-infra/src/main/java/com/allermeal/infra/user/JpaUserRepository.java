@@ -58,6 +58,8 @@ public class JpaUserRepository implements UserRepository {
 			user.encryptedEmail().value(),
 			user.emailSearchHash().value(),
 			user.passwordHash().value(),
+			user.displayName(),
+			user.usageType(),
 			user.role(),
 			user.status(),
 			user.emailVerificationStatus(),
@@ -88,6 +90,6 @@ public class JpaUserRepository implements UserRepository {
 			entity.personalDataDeletedAt(),
 			entity.sessionVersion(),
 			new EntityTimestamps(entity.createdAt(), entity.updatedAt()),
-			entity.version());
+			entity.version()).withProfile(entity.displayName(), entity.usageType());
 	}
 }

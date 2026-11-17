@@ -83,7 +83,10 @@ public final class LoginService {
 		if (user.status() == UserStatus.SUSPENDED) {
 			throw new AccountSuspendedException();
 		}
-		if (user.status() != UserStatus.ACTIVE) {
+		Instant issuedAt = clock.instant();
+		if (user.status() != UserStatus.ACTIVE
+			&& !(user.status() == UserStatus.WITHDRAWAL_PENDING
+				&& user.withdrawalDueAt() != null && issuedAt.isBefore(user.withdrawalDueAt()))) {
 			throw new InvalidLoginCredentialsException();
 		}
 		if (user.emailVerificationStatus() != EmailVerificationStatus.VERIFIED) {
@@ -92,7 +95,6 @@ public final class LoginService {
 		if (!loginAttemptStore.clearIfUnlocked(emailSearchHash.value())) {
 			throw new LoginTemporarilyLockedException();
 		}
-		Instant issuedAt = clock.instant();
 		Duration absoluteTtl = command.rememberMe() == null ? null : RefreshSessionPolicy.ABSOLUTE_TTL;
 		Duration effectiveAccessTtl = absoluteTtl != null && absoluteTtl.compareTo(accessTokenTtl) < 0
 			? absoluteTtl : accessTokenTtl;
@@ -123,7 +125,8 @@ public final class LoginService {
 			refreshToken,
 			refreshExpiresAt,
 			command.rememberMe(),
-			sessionId);
+			sessionId,
+			user.status());
 	}
 
 	private InvalidLoginCredentialsException invalidCredentials(String emailHash) {

@@ -14,9 +14,6 @@ import com.allermeal.domain.meal.MealItemId;
 import com.allermeal.domain.risk.ChildMealRisk;
 import com.allermeal.domain.risk.ChildMealRiskCalculator;
 import com.allermeal.domain.risk.MealRiskLevel;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -25,7 +22,6 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -131,8 +127,8 @@ public final class NotificationTargetScheduler {
 			risks.add(ChildMealRiskCalculator.calculate(
 				preference.childProfileId(), childAllergens, meal, allergenCodesForMeal(meal, allergenCodes)));
 		}
-		MealRiskLevel aggregate = aggregate(risks);
-		return new TargetRisk(reason(aggregate), aggregate, aggregateRiskVersion(risks));
+		MealRiskLevel aggregate = NotificationRiskSummary.aggregate(risks);
+		return new TargetRisk(NotificationRiskSummary.reason(aggregate), aggregate, NotificationRiskSummary.aggregateRiskVersion(risks));
 	}
 
 	private Map<MealItemId, List<Integer>> allergenCodesForMeal(Meal meal, Map<MealItemId, List<Integer>> allergenCodes) {
@@ -140,49 +136,6 @@ public final class NotificationTargetScheduler {
 			.collect(java.util.stream.Collectors.toMap(
 				item -> item.id(),
 				item -> allergenCodes.getOrDefault(item.id(), List.of())));
-	}
-
-	private MealRiskLevel aggregate(List<ChildMealRisk> risks) {
-		if (risks.stream().anyMatch(risk -> risk.riskLevel() == MealRiskLevel.RISKY)) {
-			return MealRiskLevel.RISKY;
-		}
-		if (risks.stream().anyMatch(risk -> risk.riskLevel() == MealRiskLevel.LABELING_FAILED)) {
-			return MealRiskLevel.LABELING_FAILED;
-		}
-		if (risks.stream().anyMatch(risk -> risk.riskLevel() == MealRiskLevel.UNKNOWN)) {
-			return MealRiskLevel.UNKNOWN;
-		}
-		if (risks.stream().anyMatch(risk -> risk.riskLevel() == MealRiskLevel.PENDING)) {
-			return MealRiskLevel.PENDING;
-		}
-		return MealRiskLevel.SAFE;
-	}
-
-	private NotificationTargetReason reason(MealRiskLevel riskLevel) {
-		return switch (riskLevel) {
-			case RISKY -> NotificationTargetReason.RISK_DETECTED;
-			case SAFE -> NotificationTargetReason.NO_RISK;
-			case UNKNOWN -> NotificationTargetReason.RISK_UNKNOWN;
-			case LABELING_FAILED -> NotificationTargetReason.RISK_LABELING_FAILED;
-			case PENDING -> NotificationTargetReason.RISK_PENDING;
-		};
-	}
-
-	private String aggregateRiskVersion(List<ChildMealRisk> risks) {
-		String canonical = risks.stream()
-			.sorted(Comparator.comparing(risk -> risk.mealId().value()))
-			.map(risk -> risk.mealId().value() + ":" + risk.riskVersion() + ":" + risk.riskLevel())
-			.collect(java.util.stream.Collectors.joining("\n"));
-		return sha256Hex(canonical);
-	}
-
-	private String sha256Hex(String value) {
-		try {
-			MessageDigest digest = MessageDigest.getInstance("SHA-256");
-			return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
-		} catch (NoSuchAlgorithmException exception) {
-			throw new IllegalStateException("SHA-256 알고리즘을 사용할 수 없습니다.", exception);
-		}
 	}
 
 	private record TargetRisk(NotificationTargetReason reason, MealRiskLevel riskLevel, String riskVersion) {

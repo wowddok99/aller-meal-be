@@ -21,6 +21,7 @@ import com.allermeal.application.admin.AdminInvalidNotificationFailureRequestExc
 import com.allermeal.application.admin.AdminMealItemLabelingPageResult;
 import com.allermeal.application.admin.AdminNotificationFailureService;
 import com.allermeal.application.admin.AdminNotificationRequestPageResult;
+import com.allermeal.application.admin.AdminNotificationRequestItemResult;
 import com.allermeal.application.admin.AdminOutboxEventPageResult;
 import com.allermeal.application.auth.AccessTokenClaims;
 import com.allermeal.application.auth.RefreshService;
@@ -32,9 +33,15 @@ import com.allermeal.domain.user.PasswordHash;
 import com.allermeal.domain.user.User;
 import com.allermeal.domain.user.UserId;
 import com.allermeal.domain.user.UserRole;
+import com.allermeal.domain.child.ChildProfileId;
+import com.allermeal.domain.notification.NotificationId;
+import com.allermeal.domain.notification.NotificationChannel;
+import com.allermeal.domain.notification.NotificationReason;
+import com.allermeal.domain.notification.NotificationStatus;
 import jakarta.servlet.http.Cookie;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +55,27 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 final class AdminOperationListHttpContractTest {
 
 	private static final Instant NOW = Instant.parse("2026-09-26T00:00:00Z");
+
+	@Test
+	void notificationListMasksLegacyFailureDetailsAndUnknownCodes() throws Exception {
+		Fixture fixture = Fixture.create();
+		var items = java.util.Arrays.asList("SMTP_SEND_FAILED", "NOTIFICATION_PREPARATION_FAILED", "SUPERSEDED_BY_CORRECTION", "UNKNOWN_FAILURE", null)
+			.stream().map(code -> new AdminNotificationRequestItemResult(new NotificationId(UUID.randomUUID()), UUID.randomUUID(),
+				new ChildProfileId(UUID.randomUUID()), new UserId(UUID.randomUUID()), LocalDate.of(2026, 9, 26),
+				NotificationChannel.EMAIL, NotificationReason.NO_RISK, NotificationStatus.FAILED, 1, 3,
+				null, null, code, "private database and SMTP details", NOW, NOW)).toList();
+		when(fixture.notificationService.findNotificationRequests(any(), any(Integer.class), any(Integer.class), any(), any(), any(), any()))
+			.thenReturn(new AdminNotificationRequestPageResult(items, 1, 20, items.size()));
+		fixture.mvc().perform(get("/api/v1/admin/notification-requests").cookie(accessCookie("admin-access")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items[0].failureMessage").value("알림 메일 발송에 실패했습니다."))
+			.andExpect(jsonPath("$.items[1].failureMessage").value("알림 내용 준비에 실패했습니다."))
+			.andExpect(jsonPath("$.items[2].failureMessage").value("정정 알림으로 대체되었습니다."))
+			.andExpect(jsonPath("$.items[3].failureMessage").value("알림 처리에 실패했습니다."))
+			.andExpect(jsonPath("$.items[4].failureMessage").doesNotExist())
+			.andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+				.string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("private database and SMTP details"))));
+	}
 
 	@Test
 	void allUnifiedAndLegacyListEndpointsReturnFilteredPageContractsForAnAdmin() throws Exception {
@@ -122,9 +150,11 @@ final class AdminOperationListHttpContractTest {
 	private static final class Fixture {
 
 		private final MockMvc mvc;
+		private final AdminNotificationFailureService notificationService;
 
-		private Fixture(MockMvc mvc) {
+		private Fixture(MockMvc mvc, AdminNotificationFailureService notificationService) {
 			this.mvc = mvc;
+			this.notificationService = notificationService;
 		}
 
 		static Fixture create() {
@@ -194,9 +224,9 @@ final class AdminOperationListHttpContractTest {
 				.setControllerAdvice(new ApiExceptionHandler())
 				.addFilters(new TraceIdFilter(),
 					new AuthenticationRequestProtectionFilter(org.mockito.Mockito.mock(StringRedisTemplate.class), 20, Duration.ofMinutes(1), "http://localhost:3000"),
-					new AuthenticationFilter(issuer, usersById, org.mockito.Mockito.mock(RefreshService.class)))
+					new AuthenticationFilter(issuer, usersById, org.mockito.Mockito.mock(RefreshService.class), java.time.Clock.systemUTC()))
 				.build();
-			return new Fixture(mvc);
+			return new Fixture(mvc, notificationService);
 		}
 
 		MockMvc mvc() { return mvc; }
