@@ -2,6 +2,7 @@ package com.allermeal.application.auth;
 
 import com.allermeal.domain.user.EmailVerificationStatus;
 import com.allermeal.domain.user.UserId;
+import com.allermeal.domain.user.UserStatus;
 import java.time.Instant;
 
 public record AuthenticationResult(
@@ -12,6 +13,7 @@ public record AuthenticationResult(
 	String refreshToken,
 	Instant refreshTokenExpiresAt,
 	Boolean rememberMe,
-	String sessionId
+	String sessionId,
+	UserStatus userStatus
 ) {
 }

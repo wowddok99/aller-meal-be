@@ -79,6 +79,7 @@ public class OpenApiConfiguration {
 		Map.entry("PersonalizedMealController#findDaily", "getPersonalizedDailyMeal"),
 		Map.entry("PersonalizedMealController#findWeekly", "getPersonalizedWeeklyMeals"),
 		Map.entry("NotificationHistoryController#findByChild", "getChildNotificationHistory"),
+		Map.entry("AccountProfileController#findProfile", "getAccountProfile"),
 		Map.entry("AccountWithdrawalController#findWithdrawal", "getAccountWithdrawal"),
 		Map.entry("AccountWithdrawalController#requestWithdrawal", "requestAccountWithdrawal"),
 		Map.entry("AccountWithdrawalController#cancelWithdrawal", "cancelAccountWithdrawal"),

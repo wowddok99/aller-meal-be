@@ -194,7 +194,7 @@ final class AdminOperationListHttpContractTest {
 				.setControllerAdvice(new ApiExceptionHandler())
 				.addFilters(new TraceIdFilter(),
 					new AuthenticationRequestProtectionFilter(org.mockito.Mockito.mock(StringRedisTemplate.class), 20, Duration.ofMinutes(1), "http://localhost:3000"),
-					new AuthenticationFilter(issuer, usersById, org.mockito.Mockito.mock(RefreshService.class)))
+					new AuthenticationFilter(issuer, usersById, org.mockito.Mockito.mock(RefreshService.class), java.time.Clock.systemUTC()))
 				.build();
 			return new Fixture(mvc);
 		}

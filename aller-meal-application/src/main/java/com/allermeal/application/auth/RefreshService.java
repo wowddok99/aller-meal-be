@@ -99,7 +99,8 @@ public final class RefreshService {
 			newRefreshToken,
 			refreshExpiresAt,
 			rotation.rememberMe(),
-			sessionId);
+			sessionId,
+			user.status());
 	}
 
 	public RefreshSessionStatusResult sessionStatus(String refreshToken) {

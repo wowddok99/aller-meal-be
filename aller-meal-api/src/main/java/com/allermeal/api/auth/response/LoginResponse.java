@@ -1,6 +1,7 @@
 package com.allermeal.api.auth.response;
 
 import com.allermeal.application.auth.AuthenticationResult;
+import com.allermeal.domain.user.UserStatus;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -9,7 +10,8 @@ public record LoginResponse(
 	String emailVerificationStatus,
 	Instant accessTokenExpiresAt,
 	Instant refreshTokenExpiresAt,
-	String sessionId
+	String sessionId,
+	UserStatus userStatus
 ) {
 
 	public static LoginResponse from(AuthenticationResult result) {
@@ -18,6 +20,7 @@ public record LoginResponse(
 			result.emailVerificationStatus().name(),
 			result.accessTokenExpiresAt(),
 			result.refreshTokenExpiresAt(),
-			result.sessionId());
+			result.sessionId(),
+			result.userStatus());
 	}
 }
