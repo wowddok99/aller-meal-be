@@ -1,6 +1,8 @@
 package com.allermeal.infra.config;
 
 import com.allermeal.application.account.AccountWithdrawalService;
+import com.allermeal.application.account.AccountProfileService;
+import com.allermeal.application.port.out.AccountProfileRepository;
 import com.allermeal.application.account.ExpiredAccountPersonalDataCleanupService;
 import com.allermeal.application.admin.AdminBootstrapProperties;
 import com.allermeal.application.admin.AdminBootstrapService;
@@ -17,6 +19,8 @@ import com.allermeal.application.meal.NeisAllergenLabelParser;
 import com.allermeal.application.meal.PersonalizedMealQueryService;
 import com.allermeal.application.meal.PublicMealQueryService;
 import com.allermeal.application.notification.NotificationDeliveryService;
+import com.allermeal.application.notification.NotificationMealSummaryService;
+import com.allermeal.application.port.out.NotificationMailContextRepository;
 import com.allermeal.application.notification.NotificationHistoryService;
 import com.allermeal.application.notification.NotificationRequestCreationService;
 import com.allermeal.application.outbox.OutboxPublisher;
@@ -161,6 +165,11 @@ public class AllerMealRuntimeConfiguration {
 	}
 
 	@Bean
+	AccountProfileService accountProfileService(AccountProfileRepository repository, EmailDecryptor decryptor, Clock clock) {
+		return new AccountProfileService(repository, decryptor, clock);
+	}
+
+	@Bean
 	AccountWithdrawalService accountWithdrawalService(
 		UserRepository userRepository,
 		AccountWithdrawalPrivacyRepository privacyRepository,
@@ -263,9 +272,10 @@ public class AllerMealRuntimeConfiguration {
 	@Bean
 	NotificationMailSender notificationMailSender(
 		JavaMailSender mailSender,
-		@Value("${aller-meal.notification.email-from:no-reply@allermeal.local}") String from
+		@Value("${aller-meal.notification.email-from:no-reply@allermeal.local}") String from,
+		@Value("${aller-meal.notification.frontend-origin:http://localhost:3000}") String frontendOrigin
 	) {
-		return new SmtpNotificationMailSender(mailSender, from);
+		return new SmtpNotificationMailSender(mailSender, from, frontendOrigin);
 	}
 
 	@Bean
@@ -274,11 +284,16 @@ public class AllerMealRuntimeConfiguration {
 		UserRepository userRepository,
 		EmailDecryptor emailDecryptor,
 		NotificationMailSender notificationMailSender,
+		NotificationMailContextRepository mailContexts,
+		MealRepository meals,
+		ChildAllergenRepository childAllergens,
+		AllergenRepository allergens,
 		Clock clock,
 		@Value("${aller-meal.notification.retry-delay:5m}") Duration retryDelay
 	) {
 		return new NotificationDeliveryService(
-			notificationRequestRepository, userRepository, emailDecryptor, notificationMailSender, clock, retryDelay);
+			notificationRequestRepository, userRepository, emailDecryptor, notificationMailSender, clock, retryDelay,
+			mailContexts, new NotificationMealSummaryService(meals, childAllergens, allergens));
 	}
 
 	@Bean

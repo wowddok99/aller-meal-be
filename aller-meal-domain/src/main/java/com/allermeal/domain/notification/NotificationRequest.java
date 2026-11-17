@@ -147,6 +147,14 @@ public record NotificationRequest(
 			"OWNER_ACCESS_RESTRICTED", null, changedAt);
 	}
 
+	public NotificationRequest cancelForInvalidContext(Instant changedAt) {
+		if (!isActive()) {
+			throw new IllegalStateException("활성 알림만 대상 불일치로 취소할 수 있습니다.");
+		}
+		return withStatus(NotificationStatus.CANCELED, attemptCount, null, null,
+			"NOTIFICATION_CONTEXT_CHANGED", null, changedAt);
+	}
+
 	private NotificationRequest withStatus(
 		NotificationStatus nextStatus,
 		int nextAttemptCount,

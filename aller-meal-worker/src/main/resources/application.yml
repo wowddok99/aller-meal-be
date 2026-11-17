@@ -61,6 +61,7 @@ aller-meal:
   consumer:
     enabled: true
   notification:
+    frontend-origin: "${NOTIFICATION_FRONTEND_ORIGIN:http://localhost:3000}"
     email-from: "${AUTH_EMAIL_FROM:no-reply@allermeal.local}"
     retry-delay: 0s
   rabbitmq:

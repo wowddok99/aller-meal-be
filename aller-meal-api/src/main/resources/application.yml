@@ -107,3 +107,7 @@ aller-meal:
       queue: aller-meal.events.dlq
       routing-key: aller-meal.events.dead
     max-retries: 3
+
+  notification:
+    email-from: "${AUTH_EMAIL_FROM:no-reply@allermeal.local}"
+    frontend-origin: "${NOTIFICATION_FRONTEND_ORIGIN:http://localhost:3000}"
